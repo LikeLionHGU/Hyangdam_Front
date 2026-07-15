@@ -29,7 +29,7 @@ function friendlyError(error, fallback) {
 }
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // 배포 환경(Render 등)은 PORT를 지정해준다
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json({ limit: '25mb' }));
@@ -182,7 +182,8 @@ app.get('/api/animate/:id', async (req, res) => {
     const { id } = req.params;
     const fileName = `${id}.mp4`;
     const outPath = path.join(outputDirectory, fileName);
-    const url = `http://localhost:${PORT}/outputs/${fileName}`;
+    // 상대 경로로 반환 — 휴대폰(LAN) 접속 시에도 Vite 프록시를 통해 재생된다
+    const url = `/outputs/${fileName}`;
 
     if (fs.existsSync(outPath)) {
       return res.json({ success: true, status: 'completed', url });
@@ -288,6 +289,18 @@ app.get('/share/:code', (req, res) => {
       <footer>향담(Hyangdam)에서 만든 추억이에요</footer>
     </div></body></html>`);
 });
+
+// 배포 환경: 빌드된 프론트엔드(dist)를 같은 서버에서 서빙
+// (개발 중에는 Vite dev 서버가 프론트를 담당하므로 dist가 있을 때만 동작)
+const distDirectory = path.join(process.cwd(), 'dist');
+if (fs.existsSync(distDirectory)) {
+  app.use(express.static(distDirectory));
+  // 위에서 처리되지 않은 GET 요청은 SPA 라우팅(index.html)으로 넘긴다
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(distDirectory, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`백엔드 서버 실행: http://localhost:${PORT}`);

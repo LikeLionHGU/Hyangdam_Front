@@ -65,6 +65,17 @@ src/
 
 프론트의 `/api` 요청은 Vite 프록시를 통해 백엔드(3000)로 전달됩니다.
 
+## 배포 (Render)
+
+프론트와 백엔드가 하나의 서비스로 배포됩니다 (Express가 빌드된 프론트를 함께 서빙).
+
+1. [render.com](https://render.com) 가입 → **New → Blueprint** → 이 GitHub 레포 연결 (`render.yaml` 자동 인식)
+2. 환경 변수 입력: `OPENAI_API_KEY`, `VITE_KAKAO_MAP_KEY`
+3. 배포 완료 후 나오는 주소(예: `https://hyangdam.onrender.com`)를
+   [Kakao Developers](https://developers.kakao.com) → 내 애플리케이션 → 플랫폼 → Web 도메인에 등록
+
+주의: 무료 플랜은 서버 디스크가 임시라서 재배포/재시작 시 생성된 영상·공유 파일이 사라질 수 있습니다.
+
 ## 참고 사항
 
 - 생성된 영상은 `server/outputs`에 저장되며, 갤러리에서 영상을 재생하려면 백엔드 서버가 켜져 있어야 합니다.

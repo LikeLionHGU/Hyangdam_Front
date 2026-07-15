@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { X } from 'lucide-react';
 import { useKakaoLoader } from './component/useKakaoLoader';
-import { loadMemories, addMemory, seedMemories } from './api';
+import { loadMemories, addMemory } from './api';
 import { loadGallery } from '../galleryPage/galleryStore';
 import AddMemoryModal from './component/AddMemoryModal';
 import MapHeader from './component/MapHeader';
@@ -18,6 +18,14 @@ const MapEl = styled.div` width: 100%; flex: 1; `;
 const StatusBanner = styled.div`
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   padding: 32px; text-align: center; color: ${({ theme }) => theme.colors.inkSoft}; font-size: 13px; line-height: 1.6;
+`;
+const EmptyBanner = styled.div`
+  position: absolute; left: 20px; right: 20px; bottom: 24px; z-index: 400;
+  background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px);
+  border-radius: 16px; padding: 16px 18px; text-align: center;
+  color: #909090; font-size: 15px; font-weight: 500; line-height: 1.7;
+  box-shadow: 0 4px 16px rgba(34, 34, 59, 0.1); white-space: pre-line;
+  pointer-events: none;
 `;
 const DetailCard = styled.div`
   position: absolute; left: 12px; right: 12px; bottom: 18px;
@@ -78,8 +86,7 @@ export default function MapPage() {
     : null;
 
   useEffect(() => {
-    const stored = loadMemories();
-    setMemories(stored && stored.length ? stored : seedMemories);
+    setMemories(loadMemories() || []);
   }, []);
 
   useEffect(() => {
@@ -143,6 +150,9 @@ export default function MapPage() {
         <StatusBanner>
           지도를 불러오지 못했어요.<br />카카오 디벨로퍼스에 등록한 도메인이 맞는지 확인해주세요.
         </StatusBanner>
+      )}
+      {loaded && memories.length === 0 && (
+        <EmptyBanner>{'아직 지도에 남긴 추억이 없어요.\n사진을 저장할 때 장소를 등록해보세요.'}</EmptyBanner>
       )}
       {selected && (
         <DetailCard>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
-import { X, Share2 } from 'lucide-react';
+import { X, Share2, Trash2 } from 'lucide-react';
 
 const Dim = styled.div`
   position: fixed;
@@ -36,7 +36,15 @@ const Head = styled.div`
     color: #5C5C5C;
   }
 
-  button { color: #909090; display: flex; }
+  button {
+    color: #909090;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: -8px;
+  }
 `;
 
 const Media = styled.div`
@@ -73,9 +81,22 @@ const Tabs = styled.div`
   }
 `;
 
+const DeleteBtn = styled.button`
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #909090;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+`;
+
 const ShareBtn = styled.button`
   height: 54px;
-  border-radius: 100px;
+  border-radius: 6px;
   background: #8EA5E8;
   color: #fff;
   font-size: 17px;
@@ -114,7 +135,8 @@ async function shareMemory(item) {
     throw new Error(data?.message || '공유 링크를 만들지 못했어요.');
   }
 
-  const url = `${window.location.protocol}//${window.location.hostname}:3000/share/${data.code}`;
+  // 현재 접속 주소 그대로 사용 — PC(localhost)든 휴대폰(LAN IP)이든 동작
+  const url = `${window.location.origin}/share/${data.code}`;
 
   // 모바일에서만 공유 시트(카톡 등) 사용 — 데스크톱은 클립보드 복사가 확실하다
   const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -138,7 +160,7 @@ async function shareMemory(item) {
 }
 
 // 갤러리 항목의 원본 / 컬러 / 동영상을 전환하며 보는 모달
-export default function MemoryViewerModal({ item, onClose }) {
+export default function MemoryViewerModal({ item, onClose, onDelete }) {
   const views = [];
   // 원본이 따로 보관되어 있고 대표 이미지와 다를 때만 원본 탭 표시
   if (item.original && item.original !== item.image) views.push({ key: 'original', label: '원본' });
@@ -201,6 +223,19 @@ export default function MemoryViewerModal({ item, onClose }) {
           <Share2 size={20} strokeWidth={2.2} />
           {sharing ? '공유 링크 만드는 중...' : '친구에게 공유하기'}
         </ShareBtn>
+
+        {onDelete && (
+          <DeleteBtn
+            onClick={() => {
+              if (window.confirm('이 추억을 지울까요?\n지운 추억은 되돌릴 수 없어요.')) {
+                onDelete(item);
+              }
+            }}
+          >
+            <Trash2 size={15} />
+            이 추억 지우기
+          </DeleteBtn>
+        )}
       </Card>
     </Dim>
   );

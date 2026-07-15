@@ -2,8 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronDown, Copy } from 'lucide-react';
-import { loadGallery } from './galleryStore';
-import { loadMemories } from '../mapPage/api';
+import { loadGallery, removeGalleryItem } from './galleryStore';
+import { loadMemories, removeMemoryByPhotoId } from '../mapPage/api';
 import MemoryViewerModal from './component/MemoryViewerModal';
 
 const Wrap = styled.div`
@@ -169,6 +169,7 @@ export default function GalleryPage() {
   const navigate = useNavigate();
   const [order, setOrder] = useState('desc');
   const [viewer, setViewer] = useState(null);
+  const [refresh, setRefresh] = useState(0);
   const [heldId, setHeldId] = useState(null);
   const holdTimer = useRef(null);
   const didHold = useRef(false);
@@ -199,7 +200,14 @@ export default function GalleryPage() {
     const list = loadGallery();
     list.sort((a, b) => (order === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt));
     return list;
-  }, [order]);
+  }, [order, refresh]);
+
+  const handleDelete = (item) => {
+    removeGalleryItem(item.id);
+    removeMemoryByPhotoId(item.id); // 연결된 지도 핀도 함께 삭제
+    setViewer(null);
+    setRefresh((n) => n + 1);
+  };
 
   const placeholders = PLACEHOLDERS.slice(0, Math.max(0, 6 - items.length));
 
@@ -268,7 +276,9 @@ export default function GalleryPage() {
         ))}
       </Grid>
 
-      {viewer && <MemoryViewerModal item={viewer} onClose={() => setViewer(null)} />}
+      {viewer && (
+        <MemoryViewerModal item={viewer} onClose={() => setViewer(null)} onDelete={handleDelete} />
+      )}
     </Wrap>
   );
 }
