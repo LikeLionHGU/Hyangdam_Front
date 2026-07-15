@@ -1,0 +1,14 @@
+# Render 배포 설정 (https://render.com)
+# 대시보드에서 New → Blueprint 로 이 레포를 연결하면 자동으로 설정됩니다.
+services:
+  - type: web
+    name: hyangdam
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node server/index.js
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # 대시보드에서 직접 입력
+      - key: VITE_KAKAO_MAP_KEY
+        sync: false # 빌드 시 프론트에 포함됨

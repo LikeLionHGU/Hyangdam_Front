@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useKakaoLoader } from '../../mapPage/component/useKakaoLoader';
-import { loadMemories, seedMemories } from '../../mapPage/api';
+import { loadMemories } from '../../mapPage/api';
 
 const Frame = styled.button`
   position: relative;
@@ -35,13 +35,13 @@ export default function MapPreview() {
   const { loaded } = useKakaoLoader();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const memories = loadMemories() || seedMemories;
-  const isEmpty = !memories || memories.length === 0;
+  const memories = loadMemories() || [];
+  const isEmpty = memories.length === 0;
 
   useEffect(() => {
     if (isEmpty || !loaded || !containerRef.current || mapRef.current) return;
     const { kakao } = window;
-    const memories = loadMemories() || seedMemories;
+    const memories = loadMemories() || [];
 
     const center = memories.length
       ? new kakao.maps.LatLng(memories[0].lat, memories[0].lng)

@@ -12,6 +12,7 @@ export const PHOTO_ID_KEY = 'hyangdam_photo_id';
 // 뒤로가기로 돌아와도 변환 결과가 유지되도록 세션에 함께 저장
 export const PHOTO_RESULT_KEY = 'hyangdam_photo_result';
 export const PHOTO_VIDEO_KEY = 'hyangdam_photo_video';
+export const PHOTO_ANIM_KEY = 'hyangdam_anim_id'; // 진행 중인 영상 생성 작업 (복귀 시 이어서 확인)
 
 const Wrap = styled.div`
   height: 100%;
@@ -217,6 +218,7 @@ export default function PhotoPage() {
   const [holdOriginal, setHoldOriginal] = useState(false);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
   const [isColor, setIsColor] = useState(false); // 애초에 컬러 사진이면 변환 단계 생략
+  const pollingRef = useRef(false); // 영상 상태 폴링 중복 방지
 
   useEffect(() => {
     let active = true;
@@ -242,6 +244,7 @@ export default function PhotoPage() {
       sessionStorage.setItem(PHOTO_STORAGE_KEY, dataUrl);
       sessionStorage.removeItem(PHOTO_RESULT_KEY);
       sessionStorage.removeItem(PHOTO_VIDEO_KEY);
+      sessionStorage.removeItem(PHOTO_ANIM_KEY);
       const item = await addPhotoToGallery(dataUrl);
       sessionStorage.setItem(PHOTO_ID_KEY, item.id);
       setPhoto(dataUrl);
@@ -269,23 +272,27 @@ export default function PhotoPage() {
     }
   };
 
-  // 컬러 사진 → 3~5초 영상 생성 (수 분 소요, 완료까지 폴링)
-  const handleAnimate = async () => {
-    if (!ready || busy) return;
+  // 영상 생성 완료까지 폴링. 작업 id를 세션에 저장해두므로
+  // 다른 화면에 다녀와도 이 함수가 이어서 확인한다.
+  const pollAnimation = async (id) => {
+    if (pollingRef.current) {
+      return;
+    }
+    pollingRef.current = true;
     setAnimating(true);
     setAnimProgress(0);
     try {
-      const framed = await frameForVideo(workingImage);
-      const { id } = await createAnimation(framed.dataUrl, framed.orientation);
       for (;;) {
         await new Promise((r) => setTimeout(r, 5000));
         const s = await getAnimationStatus(id);
         if (s.status === 'completed') {
           setVideo(s.url);
           sessionStorage.setItem(PHOTO_VIDEO_KEY, s.url);
+          sessionStorage.removeItem(PHOTO_ANIM_KEY);
           break;
         }
         if (s.status === 'failed') {
+          sessionStorage.removeItem(PHOTO_ANIM_KEY);
           throw new Error(s.message || '영상 생성에 실패했어요.');
         }
         setAnimProgress(Math.round(s.progress || 0));
@@ -294,7 +301,35 @@ export default function PhotoPage() {
       console.error(err);
       alert(err.message || '영상 변환에 실패했어요.');
     } finally {
+      pollingRef.current = false;
       setAnimating(false);
+    }
+  };
+
+  // 진행 중이던 영상 생성이 있으면 페이지에 돌아왔을 때 이어서 확인
+  useEffect(() => {
+    const pending = sessionStorage.getItem(PHOTO_ANIM_KEY);
+    if (pending && !sessionStorage.getItem(PHOTO_VIDEO_KEY)) {
+      setAnimProgress(0);
+      pollAnimation(pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 컬러 사진 → 3~5초 영상 생성 (수 분 소요)
+  const handleAnimate = async () => {
+    if (!ready || busy) return;
+    setAnimating(true);
+    setAnimProgress(0);
+    try {
+      const framed = await frameForVideo(workingImage);
+      const { id } = await createAnimation(framed.dataUrl, framed.orientation);
+      sessionStorage.setItem(PHOTO_ANIM_KEY, id);
+      await pollAnimation(id);
+    } catch (err) {
+      console.error(err);
+      setAnimating(false);
+      alert(err.message || '영상 변환에 실패했어요.');
     }
   };
 
@@ -372,7 +407,7 @@ export default function PhotoPage() {
               <div className="sub">
                 {processing
                   ? '30초에서 1분 정도 걸려요'
-                  : '2~3분 정도 걸려요\n화면을 벗어나지 말아주세요'}
+                  : '2~3분 정도 걸려요\n다른 화면에 다녀와도 괜찮아요'}
               </div>
             </ProgressOverlay>
           )}

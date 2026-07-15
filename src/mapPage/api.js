@@ -60,6 +60,12 @@ export function saveMemories(memories) {
   }
 }
 
+// 사진 삭제 시 연결된 지도 핀도 함께 정리
+export function removeMemoryByPhotoId(photoId) {
+  const current = loadMemories() || [];
+  saveMemories(current.filter((m) => m.photoId !== photoId));
+}
+
 export function addMemory(memory) {
   const current = loadMemories() || [];
   const next = [...current, { ...memory, id: crypto.randomUUID(), createdAt: Date.now() }];

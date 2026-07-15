@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
-import { X } from 'lucide-react';
+import { X, Share2, Trash2 } from 'lucide-react';
 
 const Dim = styled.div`
   position: fixed;
@@ -36,7 +36,15 @@ const Head = styled.div`
     color: #5C5C5C;
   }
 
-  button { color: #909090; display: flex; }
+  button {
+    color: #909090;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: -8px;
+  }
 `;
 
 const Media = styled.div`
@@ -73,13 +81,86 @@ const Tabs = styled.div`
   }
 `;
 
+const DeleteBtn = styled.button`
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #909090;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+`;
+
+const ShareBtn = styled.button`
+  height: 54px;
+  border-radius: 6px;
+  background: #8EA5E8;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(142, 165, 232, 0.45);
+  transition: transform 0.15s ease;
+  &:active:not(:disabled) { transform: scale(0.97); }
+  &:disabled { opacity: 0.7; }
+`;
+
 function formatDate(ts) {
   const d = new Date(ts);
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일의 추억`;
 }
 
+// 공유 링크 생성 → 모바일은 공유 시트(카톡 등), PC는 클립보드 복사
+async function shareMemory(item) {
+  const items = [];
+  if (item.original && item.original !== item.image) {
+    items.push({ label: '원본 사진', image: item.original });
+  }
+  items.push({ label: item.colored ? '컬러로 복원한 사진' : '사진', image: item.image });
+  if (item.video) items.push({ label: '살아 움직이는 추억 영상', video: item.video });
+
+  const res = await fetch('/api/share', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: formatDate(item.createdAt), items }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || '공유 링크를 만들지 못했어요.');
+  }
+
+  // 현재 접속 주소 그대로 사용 — PC(localhost)든 휴대폰(LAN IP)이든 동작
+  const url = `${window.location.origin}/share/${data.code}`;
+
+  // 모바일에서만 공유 시트(카톡 등) 사용 — 데스크톱은 클립보드 복사가 확실하다
+  const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (isMobile && navigator.share) {
+    try {
+      await navigator.share({ title: '향담 — 추억 공유', text: '소중한 추억을 함께 봐요', url });
+      return 'shared';
+    } catch (err) {
+      if (err.name === 'AbortError') return 'cancelled';
+      // 공유 시트 실패 시 복사로 폴백
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    return 'copied';
+  } catch {
+    window.prompt('아래 링크를 복사해서 친구에게 보내주세요', url);
+    return 'shown';
+  }
+}
+
 // 갤러리 항목의 원본 / 컬러 / 동영상을 전환하며 보는 모달
-export default function MemoryViewerModal({ item, onClose }) {
+export default function MemoryViewerModal({ item, onClose, onDelete }) {
   const views = [];
   // 원본이 따로 보관되어 있고 대표 이미지와 다를 때만 원본 탭 표시
   if (item.original && item.original !== item.image) views.push({ key: 'original', label: '원본' });
@@ -87,6 +168,23 @@ export default function MemoryViewerModal({ item, onClose }) {
   if (item.video) views.push({ key: 'video', label: '동영상' });
 
   const [view, setView] = useState(item.video ? 'video' : 'image');
+  const [sharing, setSharing] = useState(false);
+
+  const handleShare = async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const outcome = await shareMemory(item);
+      if (outcome === 'copied') {
+        alert('공유 링크가 복사되었어요.\n카카오톡 대화창에 붙여넣어 보내보세요!');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.message || '공유에 실패했어요. 잠시 후 다시 시도해주세요.');
+    } finally {
+      setSharing(false);
+    }
+  };
 
   return (
     <Dim onClick={onClose}>
@@ -119,6 +217,24 @@ export default function MemoryViewerModal({ item, onClose }) {
               </button>
             ))}
           </Tabs>
+        )}
+
+        <ShareBtn onClick={handleShare} disabled={sharing}>
+          <Share2 size={20} strokeWidth={2.2} />
+          {sharing ? '공유 링크 만드는 중...' : '친구에게 공유하기'}
+        </ShareBtn>
+
+        {onDelete && (
+          <DeleteBtn
+            onClick={() => {
+              if (window.confirm('이 추억을 지울까요?\n지운 추억은 되돌릴 수 없어요.')) {
+                onDelete(item);
+              }
+            }}
+          >
+            <Trash2 size={15} />
+            이 추억 지우기
+          </DeleteBtn>
         )}
       </Card>
     </Dim>

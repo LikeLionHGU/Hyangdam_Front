@@ -36,6 +36,10 @@ function compressImage(dataUrl) {
   });
 }
 
+export function removeGalleryItem(id) {
+  saveGallery(loadGallery().filter((item) => item.id !== id));
+}
+
 export async function addPhotoToGallery(dataUrl) {
   const image = await compressImage(dataUrl);
   const item = {
