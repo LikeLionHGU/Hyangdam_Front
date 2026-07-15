@@ -28,9 +28,9 @@
   }
   
   .record-screen__scroll {
-    height: calc(100vh - 56px); /* 헤더 높이 제외 */
+    height: calc(100vh - 56px);
     overflow-y: auto;
-    padding: 8px 24px 320px; /* 하단 고정 패널 + 입력바에 안 가리게 여유 확보 */
+    padding: 8px 24px 320px;
   }
   
   .record-screen__transcript {
@@ -74,12 +74,11 @@
     40% { opacity: 1; transform: scale(1.1); }
   }
   
-  /* 화면 하단 고정 패널: 후속질문 + 키워드카드(+위치확인) */
   .record-fixed-panel {
     position: fixed;
     left: 20px;
     right: 20px;
-    bottom: 104px; /* 하단 입력바 높이만큼 띄움 */
+    bottom: 104px;
     display: flex;
     flex-direction: column;
   }
@@ -166,53 +165,6 @@
     opacity: 1;
   }
   
-  .location-inline-confirm {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(100, 122, 187, 0.15);
-  }
-  
-  .location-inline-confirm__label {
-    font-size: 12px;
-    font-weight: 500;
-    color: #647ABB;
-    margin: 0 0 10px;
-  }
-  
-  .location-inline-confirm__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    background: #D6DFFB;
-    border-radius: 10px;
-    padding: 12px 16px;
-  }
-  
-  .location-inline-confirm__address {
-    font-size: 14px;
-    color: #5C5C5C;
-  }
-  
-  .location-inline-confirm__actions {
-    display: flex;
-    gap: 12px;
-    flex-shrink: 0;
-  }
-  
-  .link-btn {
-    background: none;
-    border: none;
-    font-size: 14px;
-    font-weight: 500;
-    color: #909090;
-    cursor: pointer;
-  }
-  
-  .link-btn--primary {
-    color: #647ABB;
-  }
-  
   .record-bottom-bar {
     position: fixed;
     bottom: 24px;
@@ -289,4 +241,236 @@
   @keyframes wave {
     0%, 100% { height: 6px; }
     50% { height: 20px; }
+  }
+  
+  /* ===== 위치 확인 모달 ===== */
+  .location-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+  }
+  
+  .location-modal {
+    background: #fff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 340px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .location-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .location-modal__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #647abb;
+    margin: 0;
+  }
+  
+  .location-modal__close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: #999;
+    cursor: pointer;
+  }
+  
+  .location-modal__map-wrap {
+    position: relative;
+    width: 100%;
+    height: 220px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f0f2f8;
+  }
+  
+  .location-modal__map {
+    width: 100%;
+    height: 100%;
+  }
+  
+  .location-modal__overlay-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 13px;
+    padding: 12px;
+    text-align: center;
+    pointer-events: none;
+    background: #f0f2f8;
+  }
+  
+  .location-modal__overlay-text--error {
+    color: #c0392b;
+  }
+  
+  .location-modal__question {
+    text-align: center;
+    font-size: 15px;
+    color: #5c5c5c;
+    margin: 0;
+    line-height: 1.6;
+  }
+  
+  .location-modal__actions {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .location-modal__btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  
+  .location-modal__btn--reject {
+    background: #f0f2f8;
+    color: #647abb;
+  }
+  
+  .location-modal__btn--confirm {
+    background: #647abb;
+    color: #fff;
+  }
+  
+  .location-modal__btn--confirm:disabled {
+    background: #b8c1e3;
+    cursor: not-allowed;
+  }
+
+  .location-search-page {
+    height: 100vh;
+    background: #F3F7FF;
+    font-family: -apple-system, "Pretendard", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .location-search__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+  }
+  
+  .location-search__icon-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: #5C5C5C;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .location-search__search-bar {
+    position: relative;
+    margin: 8px 16px 16px;
+  }
+  
+  .location-search__input {
+    width: 100%;
+    height: 43px;
+    padding: 0 44px 0 16px;
+    border: 1px solid #909090;
+    border-radius: 10px;
+    background: transparent;
+    font-size: 15px;
+    color: #1E2331;
+    outline: none;
+    font-family: inherit;
+  }
+  
+  .location-search__input::placeholder {
+    color: #909090;
+    font-weight: 400;
+  }
+  
+  .location-search__input:focus {
+    border-color: #647ABB;
+  }
+  
+  .location-search__icon-search {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  
+  .location-search__section-label {
+    font-size: 12px;
+    color: #647ABB;
+    margin: 8px 16px 0;
+  }
+  
+  .location-search__list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    overflow-y: auto;
+    flex: 1;
+  }
+  
+  .location-search__row {
+    border-bottom: 1px solid rgba(115, 115, 115, 0.2);
+  }
+  
+  .location-search__item {
+    width: 100%;
+    padding: 14px 16px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .location-search__item:hover {
+    background: rgba(100, 122, 187, 0.05);
+  }
+  
+  .location-search__name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1E2331;
+    line-height: 22px;
+  }
+  
+  .location-search__addr {
+    font-size: 12px;
+    color: #909090;
+    line-height: 22px;
+  }
+  
+  .location-search__status {
+    padding: 20px 16px;
+    text-align: center;
+    font-size: 14px;
+    color: #909090;
+    line-height: 1.7;
   }

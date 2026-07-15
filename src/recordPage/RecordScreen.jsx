@@ -1,25 +1,29 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import RecordHeader from "./RecordHeader.jsx";
 import KeywordCarousel from "./KeywordCarousel.jsx";
-import LocationInlineConfirm from "./LocationInlineConfirm.jsx";
+import LocationConfirmModal from "./LocationConfirmModal.jsx";
 import MicIcon from "./MicIcon.jsx";
 import { mockAnalyze } from "./dummyRecordData";
 import { analyzeWithGPT } from "./analyzeWithGPT";
 import "./RecordPage.css";
 
 const LOCATION_CONFIDENCE_THRESHOLD = 0.75;
-const FORCE_LOCATION_AFTER_TURNS = 3; // 이 턴수까지도 못 찾으면 마지막 단서로 강제 확인 유도
+const FORCE_LOCATION_AFTER_TURNS = 3;
+const MAX_LOCATION_RETRIES = 3;
 
-function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose }) {
+function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }) {
   const [turns, setTurns] = useState([]);
   const [phase, setPhase] = useState("IDLE");
   const [liveText, setLiveText] = useState("");
+  const [analyzingText, setAnalyzingText] = useState("");
   const [pendingLocation, setPendingLocation] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const inputModeRef = useRef("text");
   const recognitionRef = useRef(null);
-  const geminiHistoryRef = useRef([]); // Gemini에 매번 같이 보낼 대화 히스토리
+  const geminiHistoryRef = useRef([]);
   const lastAddressGuessRef = useRef("");
+  const rejectCountRef = useRef(0);
+  const rejectedAddressesRef = useRef([]);
 
   useEffect(() => {
     const SpeechRecognition =
@@ -44,7 +48,14 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
     };
 
     recognition.onend = () => {
-      setPhase((prev) => (prev === "RECORDING" ? "ANALYZING" : prev));
+      setPhase((prev) => {
+        if (prev !== "RECORDING") return prev;
+        setLiveText((currentLive) => {
+          setAnalyzingText(currentLive.trim());
+          return "";
+        });
+        return "ANALYZING";
+      });
     };
 
     recognitionRef.current = recognition;
@@ -63,18 +74,22 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
 
   const stopRecording = () => {
     recognitionRef.current?.stop();
+    setAnalyzingText(liveText.trim());
+    setLiveText("");
     setPhase("ANALYZING");
   };
 
   const submitTypedText = () => {
     if (!liveText.trim()) return;
     inputModeRef.current = "text";
+    setAnalyzingText(liveText.trim());
+    setLiveText("");
     setPhase("ANALYZING");
   };
 
   useEffect(() => {
     if (phase !== "ANALYZING") return;
-    if (!liveText.trim()) {
+    if (!analyzingText.trim()) {
       setPhase("IDLE");
       return;
     }
@@ -82,9 +97,8 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
     let cancelled = false;
     async function analyze() {
       setErrorMessage(null);
-      const userText = liveText.trim();
+      const userText = analyzingText.trim();
 
-      // 이번 사용자 답변을 히스토리에 먼저 추가
       const historyWithUserTurn = [
         ...geminiHistoryRef.current,
         { role: "user", parts: [{ text: userText }] },
@@ -93,7 +107,9 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
       let result;
       let usedFallback = false;
       try {
-        result = await analyzeWithGPT(historyWithUserTurn);
+        result = await analyzeWithGPT(historyWithUserTurn, {
+          rejectedAddresses: rejectedAddressesRef.current,
+        });
       } catch (err) {
         console.error("Gemini 호출 실패, mock으로 폴백:", err);
         setErrorMessage(`AI 호출 실패 (mock 데이터 사용중): ${err.message}`);
@@ -102,13 +118,16 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
       }
       if (cancelled) return;
 
-      // 히스토리에 이번 턴(사용자+AI 후속질문) 반영, 다음 호출부터 맥락 유지
       geminiHistoryRef.current = [
         ...historyWithUserTurn,
         { role: "model", parts: [{ text: result.followUpQuestion || "" }] },
       ];
 
-      if (result.address) {
+      const isRejectedAgain =
+        result.address &&
+        rejectedAddressesRef.current.includes(result.address);
+
+      if (result.address && !isRejectedAgain) {
         lastAddressGuessRef.current = result.address;
       }
 
@@ -124,20 +143,19 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
 
       const shouldConfirmLocation =
         !pendingLocation &&
+        !isRejectedAgain &&
         (result.confidence >= LOCATION_CONFIDENCE_THRESHOLD ||
           (nextTurns.length >= FORCE_LOCATION_AFTER_TURNS && lastAddressGuessRef.current));
 
       if (shouldConfirmLocation) {
         setPendingLocation({
           address: result.address || lastAddressGuessRef.current,
-          lat: result.lat,
-          lng: result.lng,
         });
         setPhase("AWAITING_LOCATION_CONFIRM");
         return;
       }
 
-      setLiveText("");
+      setAnalyzingText("");
 
       if (!usedFallback && inputModeRef.current === "voice" && recognitionRef.current) {
         setPhase("RECORDING");
@@ -153,16 +171,33 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  const handleConfirmLocation = () => {
-    onLocationConfirmed(pendingLocation);
+  const handleConfirmLocation = (locationWithCoords) => {
+    onLocationConfirmed(locationWithCoords, {
+      turns,
+      geminiHistory: geminiHistoryRef.current,
+    });
   };
 
   const handleRejectLocation = () => {
-    onLocationRejected();
+    if (pendingLocation?.address) {
+      rejectedAddressesRef.current.push(pendingLocation.address);
+    }
+    rejectCountRef.current += 1;
+    setPendingLocation(null);
+
+    if (rejectCountRef.current >= MAX_LOCATION_RETRIES) {
+      onGiveUpLocation({
+        turns,
+        geminiHistory: geminiHistoryRef.current,
+      });
+      return;
+    }
+
+    setAnalyzingText("");
+    setPhase("IDLE");
   };
 
   const latestTurn = turns[turns.length - 1];
-  const showBottomInput = phase === "IDLE" || phase === "AWAITING_LOCATION_CONFIRM";
 
   return (
     <div className="record-screen">
@@ -174,7 +209,10 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
         {phase === "RECORDING" && liveText && (
           <p className="record-screen__transcript">{liveText}</p>
         )}
-        {phase !== "RECORDING" && latestTurn && (
+        {phase === "ANALYZING" && analyzingText && (
+          <p className="record-screen__transcript">{analyzingText}</p>
+        )}
+        {phase !== "RECORDING" && phase !== "ANALYZING" && latestTurn && (
           <p className="record-screen__transcript">{latestTurn.transcript}</p>
         )}
 
@@ -195,13 +233,6 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
         {turns.length > 0 ? (
           <div className="keyword-panel">
             <KeywordCarousel turns={turns} />
-            {phase === "AWAITING_LOCATION_CONFIRM" && pendingLocation && (
-              <LocationInlineConfirm
-                address={pendingLocation.address}
-                onConfirm={handleConfirmLocation}
-                onReject={handleRejectLocation}
-              />
-            )}
           </div>
         ) : (
           phase === "IDLE" && <div className="keyword-panel keyword-panel--empty" />
@@ -246,6 +277,15 @@ function RecordScreen({ onLocationConfirmed, onLocationRejected, onBack, onClose
           </>
         )}
       </div>
+
+      {phase === "AWAITING_LOCATION_CONFIRM" && pendingLocation && (
+        <LocationConfirmModal
+          address={pendingLocation.address}
+          onConfirm={handleConfirmLocation}
+          onReject={handleRejectLocation}
+          onClose={handleRejectLocation}
+        />
+      )}
     </div>
   );
 }
