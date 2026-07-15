@@ -2,18 +2,26 @@ function MicIcon() {
     return (
       <svg
         width="18"
-        height="18"
-        viewBox="0 0 24 24"
+        height="24"
+        viewBox="0 0 18 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
+        <rect x="5" y="1" width="8" height="14" rx="4" fill="#fff" />
         <path
-          d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"
-          fill="#fff"
+          d="M2.5 10.5V11.5C2.5 15.09 5.41 18 9 18C12.59 18 15.5 15.09 15.5 11.5V10.5"
+          stroke="#fff"
+          strokeWidth="1.6"
+          strokeLinecap="round"
         />
-        <path
-          d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 11Z"
-          fill="#fff"
+        <line
+          x1="9"
+          y1="18"
+          x2="9"
+          y2="22"
+          stroke="#fff"
+          strokeWidth="1.6"
+          strokeLinecap="round"
         />
       </svg>
     );

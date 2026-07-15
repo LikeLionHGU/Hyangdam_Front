@@ -205,6 +205,15 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
 
       <div className="record-screen__scroll">
         {errorMessage && <div className="error-banner">{errorMessage}</div>}
+        {turns.length === 0 && phase === "IDLE" && (
+          <div className="record-empty">
+            <p className="record-empty__title">추억을 들려주세요</p>
+            <p className="record-empty__sub">
+              아래 마이크를 눌러 이야기를 시작하거나<br />
+              떠오르는 기억을 자유롭게 적어보세요
+            </p>
+          </div>
+        )}
 
         {phase === "RECORDING" && liveText && (
           <p className="record-screen__transcript">{liveText}</p>
@@ -217,10 +226,13 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
         )}
 
         {phase === "ANALYZING" && (
-          <div className="thinking-dots">
-            <span className="dot" />
-            <span className="dot" />
-            <span className="dot" />
+          <div className="record-analyzing">
+            <div className="thinking-dots">
+              <span className="dot" />
+              <span className="dot" />
+              <span className="dot" />
+            </div>
+            <p className="record-analyzing__label">기억을 정리하고 있어요</p>
           </div>
         )}
       </div>

@@ -1,10 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronDown, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Search, Minus } from 'lucide-react';
 import { loadGallery } from './galleryStore';
-import { loadMemories } from '../mapPage/api';
-import MemoryViewerModal from './component/MemoryViewerModal';
+import TextDetailModal from './TextDetailModal';
 
 const Wrap = styled.div`
   padding: 0 16px 24px;
@@ -16,6 +15,7 @@ const Bar = styled.div`
   padding: 0 12px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
 `;
 
 const IconBtn = styled.button`
@@ -25,6 +25,12 @@ const IconBtn = styled.button`
   align-items: center;
   justify-content: center;
   color: #5C5C5C;
+`;
+
+const BarRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const Head = styled.h1`
@@ -69,56 +75,15 @@ const Tile = styled.div`
 `;
 
 const PhotoTile = styled(Tile)`
-  position: relative;
-  aspect-ratio: ${({ $tall }) => ($tall ? '175 / 222' : '1')};
+  aspect-ratio: 1;
   background: #8EA5E8;
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  transition: transform 0.15s ease;
-  &:active { transform: scale(0.98); }
 
   img, video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-    -webkit-user-drag: none;
   }
-
-  /* 여러 버전(원본·컬러·영상)이 있음을 알리는 아이콘 */
-  .badge {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    color: #F3F7FF;
-    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
-    pointer-events: none;
-  }
-`;
-
-// 꾹 눌렀을 때 아래에서 올라오는 날짜·장소 안내
-const InfoOverlay = styled.div`
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 44px 16px 18px;
-  background: linear-gradient(180deg, rgba(34, 42, 74, 0) 0%, rgba(34, 42, 74, 0.78) 55%);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  color: #fff;
-  text-align: right;
-  pointer-events: none;
-  transform: translateY(${({ $show }) => ($show ? '0' : '100%')});
-  opacity: ${({ $show }) => ($show ? 1 : 0)};
-  transition: transform 0.3s ease, opacity 0.3s ease;
-
-  .date { font-size: 19px; font-weight: 600; letter-spacing: 0.5px; }
-  .place { font-size: 17px; font-weight: 500; }
 `;
 
 const TextTile = styled(Tile)`
@@ -129,9 +94,23 @@ const TextTile = styled(Tile)`
   font-size: 12px;
   font-weight: 400;
   line-height: 18px;
-  display: -webkit-box;
-  -webkit-line-clamp: 10;
-  -webkit-box-orient: vertical;
+  cursor: pointer;
+  transition: transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  & > span {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: center;
+  }
 `;
 
 const PlaceholderTile = styled(Tile)`
@@ -140,16 +119,6 @@ const PlaceholderTile = styled(Tile)`
 `;
 
 // 빈 자리를 채우는 연보라 타일 패턴 (디자인의 농도 배열)
-const EmptyHint = styled.p`
-  margin: 4px 0 14px;
-  text-align: center;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.7;
-  color: #909090;
-  white-space: pre-line;
-`;
-
 const PLACEHOLDERS = [
   { tall: true, opacity: 0.8 },
   { tall: true, opacity: 0.4 },
@@ -159,116 +128,100 @@ const PLACEHOLDERS = [
   { tall: true, opacity: 0.2 },
 ];
 
-function formatDate(ts) {
-  const d = new Date(ts);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
-}
-
 export default function GalleryPage() {
   const navigate = useNavigate();
   const [order, setOrder] = useState('desc');
-  const [viewer, setViewer] = useState(null);
-  const [heldId, setHeldId] = useState(null);
-  const holdTimer = useRef(null);
-  const didHold = useRef(false);
-
-  // 지도 핀(추억)과 사진을 photoId로 연결해 장소 이름을 찾는다
-  const placeById = useMemo(() => {
-    const map = {};
-    (loadMemories() || []).forEach((m) => {
-      if (m.photoId) map[m.photoId] = m.title || m.place;
-    });
-    return map;
-  }, []);
-
-  const startHold = (id) => {
-    didHold.current = false;
-    holdTimer.current = setTimeout(() => {
-      didHold.current = true;
-      setHeldId(id);
-    }, 300);
-  };
-
-  const endHold = () => {
-    clearTimeout(holdTimer.current);
-    setHeldId(null);
-  };
+  const [selectedText, setSelectedText] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const items = useMemo(() => {
     const list = loadGallery();
     list.sort((a, b) => (order === 'desc' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt));
     return list;
-  }, [order]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order, refreshKey]);
 
   const placeholders = PLACEHOLDERS.slice(0, Math.max(0, 6 - items.length));
 
+  const handleDelete = () => {
+    if (!selectedText) return;
+    const list = JSON.parse(localStorage.getItem('hyangdam_gallery') || '[]');
+    const next = list.filter((i) => i.id !== selectedText.id);
+    localStorage.setItem('hyangdam_gallery', JSON.stringify(next));
+    setSelectedText(null);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleShare = () => {
+    if (!selectedText) return;
+    const shareText = `${selectedText.text}\n\n— ${selectedText.place || ''}`;
+    if (navigator.share) {
+      navigator.share({ title: '향담 - 추억', text: shareText }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareText);
+      alert('클립보드에 복사됐어요');
+    }
+    setSelectedText(null);
+  };
+
   return (
-    <Wrap>
-      <Bar>
-        <IconBtn onClick={() => navigate(-1)} aria-label="뒤로 가기">
-          <ChevronLeft size={28} />
-        </IconBtn>
-      </Bar>
+    <>
+      <Wrap>
+        <Bar>
+          <IconBtn onClick={() => navigate(-1)} aria-label="뒤로 가기">
+            <ChevronLeft size={28} />
+          </IconBtn>
+          <BarRight>
+            <IconBtn aria-label="검색"><Search size={20} /></IconBtn>
+            <IconBtn aria-label="메뉴"><Minus size={20} /></IconBtn>
+          </BarRight>
+        </Bar>
 
-      <Head>{'지금까지의\n기억을 둘러봐요'}</Head>
+        <Head>{'지금까지의\n기억을 둘러봐요'}</Head>
 
-      <SortRow>
-        <button onClick={() => setOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}>
-          {order === 'desc' ? '최신순' : '오래된순'}
-          <ChevronDown
-            size={16}
-            strokeWidth={2}
-            style={{ transform: order === 'asc' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-          />
-        </button>
-      </SortRow>
+        <SortRow>
+          <button onClick={() => setOrder((o) => (o === 'desc' ? 'asc' : 'desc'))}>
+            {order === 'desc' ? '최신순' : '오래된순'}
+            <ChevronDown size={16} strokeWidth={2} />
+          </button>
+        </SortRow>
 
-      {items.length === 0 && (
-        <EmptyHint>{'아직 저장된 추억이 없어요.\n홈에서 흑백사진을 올려 첫 추억을 만들어보세요.'}</EmptyHint>
+        <Grid>
+          {items.map((item) => {
+            if (item.type === 'video') {
+              return (
+                <PhotoTile key={item.id}>
+                  <video src={item.video} poster={item.image} muted loop autoPlay playsInline />
+                </PhotoTile>
+              );
+            }
+            if (item.type === 'photo') {
+              return (
+                <PhotoTile key={item.id}>
+                  <img src={item.image} alt="추억 사진" />
+                </PhotoTile>
+              );
+            }
+            return (
+              <TextTile key={item.id} onClick={() => setSelectedText(item)}>
+                <span>{item.text}</span>
+              </TextTile>
+            );
+          })}
+          {placeholders.map((p, i) => (
+            <PlaceholderTile key={`ph-${i}`} $tall={p.tall} $opacity={p.opacity} />
+          ))}
+        </Grid>
+      </Wrap>
+
+      {selectedText && (
+        <TextDetailModal
+          item={selectedText}
+          onClose={() => setSelectedText(null)}
+          onDelete={handleDelete}
+          onShare={handleShare}
+        />
       )}
-
-      <Grid>
-        {items.map((item, i) => {
-          if (item.type === 'text') {
-            return <TextTile key={item.id}>{item.text}</TextTile>;
-          }
-          const hasVersions = item.colored || item.video;
-          return (
-            <PhotoTile
-              key={item.id}
-              $tall={i % 3 !== 0}
-              onClick={() => {
-                if (didHold.current) {
-                  didHold.current = false;
-                  return; // 꾹 누르기 후엔 모달을 열지 않는다
-                }
-                setViewer(item);
-              }}
-              onPointerDown={() => startHold(item.id)}
-              onPointerUp={endHold}
-              onPointerLeave={endHold}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {item.type === 'video' ? (
-                <video src={item.video} poster={item.image} muted loop autoPlay playsInline />
-              ) : (
-                <img src={item.image} alt="추억 사진" />
-              )}
-              {hasVersions && <Copy className="badge" size={20} strokeWidth={2.2} />}
-              <InfoOverlay $show={heldId === item.id}>
-                <div className="date">{formatDate(item.createdAt)}</div>
-                {placeById[item.id] && <div className="place">{placeById[item.id]}</div>}
-              </InfoOverlay>
-            </PhotoTile>
-          );
-        })}
-        {placeholders.map((p, i) => (
-          <PlaceholderTile key={`ph-${i}`} $tall={p.tall} $opacity={p.opacity} />
-        ))}
-      </Grid>
-
-      {viewer && <MemoryViewerModal item={viewer} onClose={() => setViewer(null)} />}
-    </Wrap>
+    </>
   );
 }

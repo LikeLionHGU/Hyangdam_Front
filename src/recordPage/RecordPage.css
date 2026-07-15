@@ -56,7 +56,6 @@
     display: flex;
     justify-content: center;
     gap: 6px;
-    margin-top: 24px;
   }
   
   .thinking-dots .dot {
@@ -200,21 +199,29 @@
     height: 44px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.6);
-    box-shadow: 0 0 0 1.5px #647ABB inset;
-    color: #647ABB;
+    background: #ADC0F8;
+    color: #fff;
     font-size: 16px;
     cursor: pointer;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 2px 8px rgba(173, 192, 248, 0.4);
+    transition: transform 0.1s;
+  }
+  
+  .mic-btn:hover {
+    transform: scale(1.05);
+  }
+  
+  .mic-btn:active {
+    transform: scale(0.95);
   }
   
   .mic-btn--active {
     background: #e05656;
-    box-shadow: none;
-    color: #fff;
+    box-shadow: 0 2px 8px rgba(224, 86, 86, 0.4);
   }
   
   .voice-wave {
@@ -473,4 +480,80 @@
     font-size: 14px;
     color: #909090;
     line-height: 1.7;
+  }
+
+  .record-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 40vh;
+    transform: translateY(-50%);
+    opacity: 0.7;
+  }
+  
+  .record-empty__title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #647ABB;
+    margin: 0;
+    letter-spacing: 0.44px;
+  }
+  
+  .record-empty__sub {
+    font-size: 15px;
+    font-weight: 400;
+    color: #647ABB;
+    text-align: center;
+    line-height: 1.6;
+    margin: 0;
+    opacity: 0.75;
+  }
+
+  /* 분석 중(로딩 점) — 화면 정중앙 */
+.record-analyzing {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    z-index: 10;
+  }
+  
+  .record-analyzing__label {
+    font-size: 14px;
+    color: #647ABB;
+    margin: 0;
+    opacity: 0.85;
+  }
+  
+  /* 저장 중 — 화면 전체 정중앙 */
+  .record-saving {
+    height: 100vh;
+    background: #F3F7FF;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    font-family: -apple-system, "Pretendard", sans-serif;
+  }
+  
+  .record-saving__title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #647ABB;
+    margin: 8px 0 0;
+    letter-spacing: 0.4px;
+  }
+  
+  .record-saving__sub {
+    font-size: 14px;
+    color: #647ABB;
+    opacity: 0.7;
+    margin: 0;
   }
