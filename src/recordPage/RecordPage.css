@@ -1,0 +1,292 @@
+.record-screen {
+    position: relative;
+    height: 100vh;
+    background: #F3F7FF;
+    font-family: -apple-system, "Pretendard", sans-serif;
+  }
+  
+  .record-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+  }
+  
+  .record-header__icon {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #5C5C5C;
+    cursor: pointer;
+  }
+  
+  .record-header__title {
+    font-size: 15px;
+    font-weight: 400;
+    color: #5C5C5C;
+    margin: 0;
+  }
+  
+  .record-screen__scroll {
+    height: calc(100vh - 56px); /* 헤더 높이 제외 */
+    overflow-y: auto;
+    padding: 8px 24px 320px; /* 하단 고정 패널 + 입력바에 안 가리게 여유 확보 */
+  }
+  
+  .record-screen__transcript {
+    color: #5C5C5C;
+    font-size: 16px;
+    line-height: 1.46;
+    letter-spacing: 0.32px;
+    text-align: right;
+    margin: 0;
+  }
+  
+  .error-banner {
+    background: #ffe8e8;
+    border: 1px solid #ffb3b3;
+    color: #c0392b;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .thinking-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 24px;
+  }
+  
+  .thinking-dots .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ADC0F8;
+    animation: pulse 1s infinite ease-in-out;
+  }
+  .thinking-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+  
+  @keyframes pulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.1); }
+  }
+  
+  /* 화면 하단 고정 패널: 후속질문 + 키워드카드(+위치확인) */
+  .record-fixed-panel {
+    position: fixed;
+    left: 20px;
+    right: 20px;
+    bottom: 104px; /* 하단 입력바 높이만큼 띄움 */
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .followup-bubble {
+    background: linear-gradient(136deg, #E8EDFD 0%, #FFFFFF 100%);
+    border: 1px solid #ADC0F8;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 14px;
+    color: #647ABB;
+    line-height: 1.57;
+    margin-bottom: 16px;
+    text-align: left;
+  }
+  
+  .keyword-panel {
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 24px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 20px;
+  }
+  
+  .keyword-panel--empty {
+    height: 200px;
+  }
+  
+  .keyword-panel__pages {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+  
+  .keyword-panel__page {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+  }
+  
+  .keyword-panel__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .keyword-chip {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    white-space: nowrap;
+    background: #fff;
+    border: 1px solid #DCE3FA;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #5C5C5C;
+  }
+  
+  .keyword-chip--muted {
+    color: #aaa;
+    border-style: dashed;
+  }
+  
+  .keyword-panel__dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+  }
+  
+  .page-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: #647ABB;
+    opacity: 0.4;
+    transition: opacity 0.2s, width 0.2s;
+  }
+  
+  .page-dot--active {
+    width: 16px;
+    opacity: 1;
+  }
+  
+  .location-inline-confirm {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(100, 122, 187, 0.15);
+  }
+  
+  .location-inline-confirm__label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #647ABB;
+    margin: 0 0 10px;
+  }
+  
+  .location-inline-confirm__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: #D6DFFB;
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+  
+  .location-inline-confirm__address {
+    font-size: 14px;
+    color: #5C5C5C;
+  }
+  
+  .location-inline-confirm__actions {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  
+  .link-btn {
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #909090;
+    cursor: pointer;
+  }
+  
+  .link-btn--primary {
+    color: #647ABB;
+  }
+  
+  .record-bottom-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.60) 0%, rgba(142, 165, 232, 0.30) 47%, rgba(255, 255, 255, 0.60) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 26px;
+    padding: 10px 12px;
+    box-shadow: 0 4px 20px rgba(142, 165, 232, 0.35);
+  }
+  
+  .record-bottom-bar__input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    color: #5C5C5C;
+    padding: 8px 12px;
+    background: transparent;
+  }
+  
+  .record-bottom-bar__input::placeholder {
+    color: #8a9bcf;
+  }
+  
+  .mic-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: 0 0 0 1.5px #647ABB inset;
+    color: #647ABB;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .mic-btn--active {
+    background: #e05656;
+    box-shadow: none;
+    color: #fff;
+  }
+  
+  .voice-wave {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 24px;
+    overflow: hidden;
+  }
+  
+  .voice-wave__bar {
+    width: 2px;
+    height: 12px;
+    background: #647ABB;
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(100, 122, 187, 0.6);
+    animation: wave 0.8s infinite ease-in-out;
+  }
+  .voice-wave__bar:nth-child(odd) { animation-delay: 0.1s; }
+  .voice-wave__bar:nth-child(3n) { animation-delay: 0.3s; }
+  
+  @keyframes wave {
+    0%, 100% { height: 6px; }
+    50% { height: 20px; }
+  }
