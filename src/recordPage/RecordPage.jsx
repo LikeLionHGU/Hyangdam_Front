@@ -31,12 +31,16 @@ function RecordPage() {
     const place = location.address || location.name || "";
 
     // 1) 갤러리 아이템 저장 (텍스트 타일용)
+    // 대화에서 뽑힌 키워드들을 함께 저장 (갤러리 카드·상세에서 표시)
+    const keywords = [...new Set(convo.turns.flatMap((t) => t.keywords || []))].slice(0, 6);
+
     const galleryItem = addTextToGallery({
       text,
       fullTranscript,
       place,
       lat: location.lat,
       lng: location.lng,
+      keywords,
     });
 
     // 2) 지도 핀 저장 (좌표가 있을 때만)

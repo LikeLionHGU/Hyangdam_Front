@@ -106,52 +106,84 @@ const PhotoTile = styled(Tile)`
   }
 `;
 
+// 꾹 눌렀을 때 아래에서 올라오는 날짜·장소 바 (시안: 어두운 하단 띠)
 const InfoOverlay = styled.div`
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 44px 16px 18px;
-  background: linear-gradient(180deg, rgba(34, 42, 74, 0) 0%, rgba(34, 42, 74, 0.78) 55%);
+  height: 54px;
+  background: rgba(30, 35, 49, 0.8);
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: flex-end;
-  gap: 2px;
-  color: #fff;
+  gap: 3px;
+  padding: 0 16px;
+  color: #F3F7FF;
+  font-size: 12px;
+  line-height: 17.5px;
   text-align: right;
   pointer-events: none;
   transform: translateY(${({ $show }) => ($show ? '0' : '100%')});
   opacity: ${({ $show }) => ($show ? 1 : 0)};
   transition: transform 0.3s ease, opacity 0.3s ease;
-
-  .date { font-size: 19px; font-weight: 600; letter-spacing: 0.5px; }
-  .place { font-size: 17px; font-weight: 500; }
 `;
 
+// 구술 기록 카드 — 따옴표 + 발췌문 + 장소·날짜로 정돈된 표시
 const TextTile = styled(Tile)`
   height: 222px;
-  background: #8EA5E8;
-  padding: 16px 15px;
-  color: #F3F7FF;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
+  background: linear-gradient(160deg, #94A9EB 0%, #7D95E0 100%);
+  padding: 16px 16px 14px;
+  color: #F8FAFF;
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform 0.15s ease;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
 
   &:active {
     transform: scale(0.98);
   }
 
-  & > span {
+  .quote {
+    font-family: Georgia, serif;
+    font-size: 34px;
+    line-height: 0.9;
+    font-weight: 700;
+    opacity: 0.45;
+  }
+
+  .excerpt {
+    margin: 4px 0 0;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.65;
+    word-break: keep-all;
     display: -webkit-box;
-    -webkit-line-clamp: 5;
+    -webkit-line-clamp: 6;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    text-align: center;
+  }
+
+  .meta {
+    margin-top: auto;
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 11.5px;
+    opacity: 0.9;
+  }
+
+  .meta .place {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .meta .date {
+    opacity: 0.75;
   }
 `;
 
@@ -272,11 +304,19 @@ export default function GalleryPage() {
 
       <Grid>
         {(() => {
-          const renderItem = (item, i) => {
+          // 시안 패턴: 왼쪽 열은 정사각↔길쭉 번갈아, 오른쪽 열은 모두 길쭉
+          const tallFor = (col, row) => (col === 1 ? true : row % 2 === 1);
+
+          const renderItem = (item, tall) => {
             if (item.type === 'text') {
               return (
                 <TextTile key={item.id} onClick={() => setSelectedText(item)}>
-                  <span>{item.text}</span>
+                  <div className="quote">&ldquo;</div>
+                  <p className="excerpt">{item.text}</p>
+                  <div className="meta">
+                    {item.place && <span className="place">{item.place}</span>}
+                    <span className="date">{formatDate(item.createdAt)}</span>
+                  </div>
                 </TextTile>
               );
             }
@@ -284,7 +324,7 @@ export default function GalleryPage() {
             return (
               <PhotoTile
                 key={item.id}
-                $tall={i % 3 !== 0}
+                $tall={tall}
                 onClick={() => {
                   if (didHold.current) {
                     didHold.current = false;
@@ -312,19 +352,23 @@ export default function GalleryPage() {
           };
 
           const cells = [
-            ...items.map((item, i) => renderItem(item, i)),
-            ...placeholders.map((p, i) => (
-              <PlaceholderTile key={`ph-${i}`} $tall={p.tall} $opacity={p.opacity} />
-            )),
+            ...items.map((item) => ({ kind: 'item', item })),
+            ...placeholders.map((p, i) => ({ kind: 'ph', p, key: `ph-${i}` })),
           ];
 
           // 최신 항목부터 좌→우 순서로 번갈아 배치
-          return (
-            <>
-              <div className="col">{cells.filter((_, i) => i % 2 === 0)}</div>
-              <div className="col">{cells.filter((_, i) => i % 2 === 1)}</div>
-            </>
-          );
+          const columns = [cells.filter((_, i) => i % 2 === 0), cells.filter((_, i) => i % 2 === 1)];
+          return columns.map((col, c) => (
+            <div className="col" key={c}>
+              {col.map((cell, r) =>
+                cell.kind === 'item' ? (
+                  renderItem(cell.item, tallFor(c, r))
+                ) : (
+                  <PlaceholderTile key={cell.key} $tall={tallFor(c, r)} $opacity={cell.p.opacity} />
+                )
+              )}
+            </div>
+          ));
         })()}
       </Grid>
 

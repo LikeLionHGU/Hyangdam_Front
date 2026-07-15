@@ -79,11 +79,13 @@ export async function updateGalleryPhoto(id, dataUrl, videoUrl = null, { colored
 }
 
 // 갤러리에 텍스트 저장 함수 
-export function addTextToGallery({ text, place, lat, lng }) {
+export function addTextToGallery({ text, fullTranscript, place, lat, lng, keywords }) {
   const item = {
     id: `${Date.now()}`,
     type: 'text',
     text,
+    fullTranscript: fullTranscript || '',
+    keywords: keywords || [],
     place,
     lat,
     lng,
