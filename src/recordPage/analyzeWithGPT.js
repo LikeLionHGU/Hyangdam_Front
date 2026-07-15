@@ -34,14 +34,27 @@ function extractJsonLoose(raw) {
       if (depth === 0) return text.slice(start, i + 1);
     }
   }
-  // 닫는 } 없이 잘린 응답 → 지금까지 열린 만큼 닫아서 시도
   return text.slice(start) + "}".repeat(Math.max(depth, 0));
 }
 
+// Gemini 형식({role, parts:[{text}]}) → OpenAI 형식({role, content}) 변환
+function toOpenAIMessages(history, systemPrompt) {
+  const messages = [{ role: "system", content: systemPrompt }];
+  for (const turn of history) {
+    const text = turn.parts?.[0]?.text || "";
+    if (!text) continue;
+    messages.push({
+      role: turn.role === "model" ? "assistant" : "user",
+      content: text,
+    });
+  }
+  return messages;
+}
+
 export async function analyzeWithGPT(history, options = {}) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("VITE_GEMINI_API_KEY가 설정되지 않았어요 (.env 확인 후 dev 서버 재시작 필요)");
+    throw new Error("VITE_OPENAI_API_KEY가 설정되지 않았어요 (.env 확인 후 dev 서버 재시작 필요)");
   }
 
   let systemPrompt = BASE_SYSTEM_PROMPT;
@@ -52,34 +65,29 @@ export async function analyzeWithGPT(history, options = {}) {
       `그리고 addressGuess는 이전 후보와 반드시 달라야 하며, 확실치 않으면 빈 문자열로 둬.`;
   }
 
-  const url =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent";
-
-  const response = await fetch(url, {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: history,
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.7,
-      },
+      model: "gpt-4o-mini",
+      messages: toOpenAIMessages(history, systemPrompt),
+      response_format: { type: "json_object" },
+      temperature: 0.7,
     }),
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini API 오류 (${response.status}): ${errText}`);
+    throw new Error(`OpenAI API 오류 (${response.status}): ${errText}`);
   }
 
   const data = await response.json();
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const raw = data.choices?.[0]?.message?.content;
   if (!raw) {
-    throw new Error("Gemini 응답에서 텍스트를 찾을 수 없어요");
+    throw new Error("OpenAI 응답에서 텍스트를 찾을 수 없어요");
   }
 
   let parsed;
@@ -96,9 +104,8 @@ export async function analyzeWithGPT(history, options = {}) {
     }
   }
 
-  // 완전히 파싱 실패 → 응답 텍스트를 followUpQuestion으로 재조립 (완전 실패 방지)
   if (!parsed) {
-    console.warn("Gemini JSON 파싱 실패, 원문을 후속질문으로 사용:", raw);
+    console.warn("OpenAI JSON 파싱 실패, 원문을 후속질문으로 사용:", raw);
     parsed = {
       keywords: [],
       followUpQuestion: raw.trim().slice(0, 200),
