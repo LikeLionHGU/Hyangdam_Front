@@ -194,12 +194,21 @@ export async function colorizeImage(dataUrl) {
     throw new Error(started?.message || '이미지 컬러화 중 오류가 발생했습니다.');
   }
 
+  let failures = 0; // 일시적 오류(서버 재시작 등)는 몇 번 견디고 계속 확인
   for (;;) {
     await new Promise((r) => setTimeout(r, 3000));
-    const statusRes = await fetch(`/api/colorize/${started.id}`);
-    const data = await statusRes.json().catch(() => null);
-    if (!statusRes.ok || !data?.success) {
-      throw new Error(data?.message || '이미지 컬러화 중 오류가 발생했습니다.');
+    let data = null;
+    try {
+      const statusRes = await fetch(`/api/colorize/${started.id}`);
+      data = await statusRes.json().catch(() => null);
+      if (!statusRes.ok || !data?.success) throw new Error(data?.message);
+      failures = 0;
+    } catch (err) {
+      failures += 1;
+      if (failures >= 10) {
+        throw new Error(err.message || '이미지 컬러화 중 오류가 발생했습니다.');
+      }
+      continue;
     }
     if (data.status === 'done') return data.image;
     if (data.status === 'failed') {

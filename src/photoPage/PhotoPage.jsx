@@ -281,10 +281,19 @@ export default function PhotoPage() {
     pollingRef.current = true;
     setAnimating(true);
     setAnimProgress(0);
+    let failures = 0; // 일시적 오류(서버 재시작 등)는 몇 번 견디고 계속 확인
     try {
       for (;;) {
         await new Promise((r) => setTimeout(r, 5000));
-        const s = await getAnimationStatus(id);
+        let s;
+        try {
+          s = await getAnimationStatus(id);
+          failures = 0;
+        } catch (err) {
+          failures += 1;
+          if (failures >= 6) throw err; // 30초 연속 실패면 포기
+          continue;
+        }
         if (s.status === 'completed') {
           setVideo(s.url);
           sessionStorage.setItem(PHOTO_VIDEO_KEY, s.url);
