@@ -5,6 +5,7 @@ import LocationSearchScreen from "./LocationSearchScreen.jsx";
 import LocationConfirmModal from "./LocationConfirmModal.jsx";
 import { addTextToGallery } from "../galleryPage/galleryStore";
 import { summarizeConversation } from "./summarizeConversation";
+import "./RecordPage.css";
 
 function RecordPage() {
   const navigate = useNavigate();
@@ -98,8 +99,14 @@ function RecordPage() {
         </>
       )}
       {step === "SAVING" && (
-        <div style={{ padding: 24, textAlign: "center" }}>
-          기억을 정리하고 있어요...
+        <div className="record-saving">
+          <div className="thinking-dots">
+            <span className="dot" />
+            <span className="dot" />
+            <span className="dot" />
+          </div>
+          <p className="record-saving__title">기억을 정리하고 있어요</p>
+          <p className="record-saving__sub">잠시만 기다려 주세요</p>
         </div>
       )}
     </>

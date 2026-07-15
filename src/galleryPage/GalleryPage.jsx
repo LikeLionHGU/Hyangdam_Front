@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronDown, Copy } from 'lucide-react';
 import { loadGallery, removeGalleryItem } from './galleryStore';
 import { loadMemories, removeMemoryByPhotoId } from '../mapPage/api';
 import MemoryViewerModal from './component/MemoryViewerModal';
+import TextDetailModal from './TextDetailModal';
 
 const Wrap = styled.div`
   padding: 0 16px 24px;
@@ -87,7 +88,6 @@ const PhotoTile = styled(Tile)`
     -webkit-user-drag: none;
   }
 
-  /* 여러 버전(원본·컬러·영상)이 있음을 알리는 아이콘 */
   .badge {
     position: absolute;
     top: 12px;
@@ -98,7 +98,6 @@ const PhotoTile = styled(Tile)`
   }
 `;
 
-// 꾹 눌렀을 때 아래에서 올라오는 날짜·장소 안내
 const InfoOverlay = styled.div`
   position: absolute;
   left: 0;
@@ -129,9 +128,23 @@ const TextTile = styled(Tile)`
   font-size: 12px;
   font-weight: 400;
   line-height: 18px;
-  display: -webkit-box;
-  -webkit-line-clamp: 10;
-  -webkit-box-orient: vertical;
+  cursor: pointer;
+  transition: transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  & > span {
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: center;
+  }
 `;
 
 const PlaceholderTile = styled(Tile)`
@@ -139,7 +152,6 @@ const PlaceholderTile = styled(Tile)`
   background: rgba(142, 165, 232, ${({ $opacity }) => $opacity});
 `;
 
-// 빈 자리를 채우는 연보라 타일 패턴 (디자인의 농도 배열)
 const EmptyHint = styled.p`
   margin: 4px 0 14px;
   text-align: center;
@@ -169,19 +181,20 @@ export default function GalleryPage() {
   const navigate = useNavigate();
   const [order, setOrder] = useState('desc');
   const [viewer, setViewer] = useState(null);
+  const [selectedText, setSelectedText] = useState(null);
   const [refresh, setRefresh] = useState(0);
   const [heldId, setHeldId] = useState(null);
   const holdTimer = useRef(null);
   const didHold = useRef(false);
 
-  // 지도 핀(추억)과 사진을 photoId로 연결해 장소 이름을 찾는다
   const placeById = useMemo(() => {
     const map = {};
     (loadMemories() || []).forEach((m) => {
       if (m.photoId) map[m.photoId] = m.title || m.place;
     });
     return map;
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh]);
 
   const startHold = (id) => {
     didHold.current = false;
@@ -204,9 +217,22 @@ export default function GalleryPage() {
 
   const handleDelete = (item) => {
     removeGalleryItem(item.id);
-    removeMemoryByPhotoId(item.id); // 연결된 지도 핀도 함께 삭제
+    removeMemoryByPhotoId(item.id);
     setViewer(null);
+    setSelectedText(null);
     setRefresh((n) => n + 1);
+  };
+
+  const handleShareText = () => {
+    if (!selectedText) return;
+    const shareText = `${selectedText.text}\n\n— ${selectedText.place || ''}`;
+    if (navigator.share) {
+      navigator.share({ title: '향담 - 추억', text: shareText }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(shareText);
+      alert('클립보드에 복사됐어요');
+    }
+    setSelectedText(null);
   };
 
   const placeholders = PLACEHOLDERS.slice(0, Math.max(0, 6 - items.length));
@@ -239,7 +265,11 @@ export default function GalleryPage() {
       <Grid>
         {items.map((item, i) => {
           if (item.type === 'text') {
-            return <TextTile key={item.id}>{item.text}</TextTile>;
+            return (
+              <TextTile key={item.id} onClick={() => setSelectedText(item)}>
+                <span>{item.text}</span>
+              </TextTile>
+            );
           }
           const hasVersions = item.colored || item.video;
           return (
@@ -249,7 +279,7 @@ export default function GalleryPage() {
               onClick={() => {
                 if (didHold.current) {
                   didHold.current = false;
-                  return; // 꾹 누르기 후엔 모달을 열지 않는다
+                  return;
                 }
                 setViewer(item);
               }}
@@ -278,6 +308,15 @@ export default function GalleryPage() {
 
       {viewer && (
         <MemoryViewerModal item={viewer} onClose={() => setViewer(null)} onDelete={handleDelete} />
+      )}
+
+      {selectedText && (
+        <TextDetailModal
+          item={selectedText}
+          onClose={() => setSelectedText(null)}
+          onDelete={() => handleDelete(selectedText)}
+          onShare={handleShareText}
+        />
       )}
     </Wrap>
   );
