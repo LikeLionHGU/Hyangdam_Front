@@ -371,7 +371,7 @@ export default function PhotoPage() {
         lng: place.lng,
         photoId: sessionStorage.getItem(PHOTO_ID_KEY),
       });
-      navigate('/map');
+      navigate('/map', { state: { justSaved: true } }); // 지도에서 저장 완료 카드 표시
     } else {
       navigate('/gallery');
     }

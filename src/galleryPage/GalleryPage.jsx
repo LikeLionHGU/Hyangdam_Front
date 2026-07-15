@@ -56,9 +56,17 @@ const SortRow = styled.div`
   }
 `;
 
+// 항목이 좌→우 순서로 번갈아 배치되는 2열 (CSS columns는 세로로 먼저 채워짐)
 const Grid = styled.div`
-  columns: 2;
-  column-gap: 12px;
+  display: flex;
+  gap: 12px;
+
+  .col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
 `;
 
 const Tile = styled.div`
@@ -263,47 +271,61 @@ export default function GalleryPage() {
       )}
 
       <Grid>
-        {items.map((item, i) => {
-          if (item.type === 'text') {
+        {(() => {
+          const renderItem = (item, i) => {
+            if (item.type === 'text') {
+              return (
+                <TextTile key={item.id} onClick={() => setSelectedText(item)}>
+                  <span>{item.text}</span>
+                </TextTile>
+              );
+            }
+            const hasVersions = item.colored || item.video;
             return (
-              <TextTile key={item.id} onClick={() => setSelectedText(item)}>
-                <span>{item.text}</span>
-              </TextTile>
+              <PhotoTile
+                key={item.id}
+                $tall={i % 3 !== 0}
+                onClick={() => {
+                  if (didHold.current) {
+                    didHold.current = false;
+                    return;
+                  }
+                  setViewer(item);
+                }}
+                onPointerDown={() => startHold(item.id)}
+                onPointerUp={endHold}
+                onPointerLeave={endHold}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {item.type === 'video' ? (
+                  <video src={item.video} poster={item.image} muted loop autoPlay playsInline />
+                ) : (
+                  <img src={item.image} alt="추억 사진" />
+                )}
+                {hasVersions && <Copy className="badge" size={20} strokeWidth={2.2} />}
+                <InfoOverlay $show={heldId === item.id}>
+                  <div className="date">{formatDate(item.createdAt)}</div>
+                  {placeById[item.id] && <div className="place">{placeById[item.id]}</div>}
+                </InfoOverlay>
+              </PhotoTile>
             );
-          }
-          const hasVersions = item.colored || item.video;
+          };
+
+          const cells = [
+            ...items.map((item, i) => renderItem(item, i)),
+            ...placeholders.map((p, i) => (
+              <PlaceholderTile key={`ph-${i}`} $tall={p.tall} $opacity={p.opacity} />
+            )),
+          ];
+
+          // 최신 항목부터 좌→우 순서로 번갈아 배치
           return (
-            <PhotoTile
-              key={item.id}
-              $tall={i % 3 !== 0}
-              onClick={() => {
-                if (didHold.current) {
-                  didHold.current = false;
-                  return;
-                }
-                setViewer(item);
-              }}
-              onPointerDown={() => startHold(item.id)}
-              onPointerUp={endHold}
-              onPointerLeave={endHold}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {item.type === 'video' ? (
-                <video src={item.video} poster={item.image} muted loop autoPlay playsInline />
-              ) : (
-                <img src={item.image} alt="추억 사진" />
-              )}
-              {hasVersions && <Copy className="badge" size={20} strokeWidth={2.2} />}
-              <InfoOverlay $show={heldId === item.id}>
-                <div className="date">{formatDate(item.createdAt)}</div>
-                {placeById[item.id] && <div className="place">{placeById[item.id]}</div>}
-              </InfoOverlay>
-            </PhotoTile>
+            <>
+              <div className="col">{cells.filter((_, i) => i % 2 === 0)}</div>
+              <div className="col">{cells.filter((_, i) => i % 2 === 1)}</div>
+            </>
           );
-        })}
-        {placeholders.map((p, i) => (
-          <PlaceholderTile key={`ph-${i}`} $tall={p.tall} $opacity={p.opacity} />
-        ))}
+        })()}
       </Grid>
 
       {viewer && (

@@ -19,9 +19,15 @@
   .record-header__icon {
     background: none;
     border: none;
-    font-size: 20px;
+    font-size: 28px;
     color: #5C5C5C;
     cursor: pointer;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: -8px;
   }
   
   .record-header__title {
@@ -44,6 +50,49 @@
     letter-spacing: 0.32px;
     text-align: right;
     margin: 0;
+  }
+
+  /* ===== 대화 기록 (채팅처럼 쌓임) ===== */
+  .chat-log {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chat-msg {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 16px;
+    line-height: 1.5;
+    letter-spacing: 0.2px;
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .chat-msg--user {
+    align-self: flex-end;
+    max-width: 90%;
+    padding: 0;
+    color: #5C5C5C;
+    text-align: right;
+    line-height: 1.46;
+    letter-spacing: 0.32px;
+  }
+
+  .chat-msg--live {
+    opacity: 0.6; /* 음성 인식 중인 문장 */
+  }
+
+  .chat-msg--ai {
+    align-self: flex-start;
+    background: linear-gradient(144deg, #E8EDFD 0%, #FFFFFF 100%);
+    border: 1px solid #ADC0F8;
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: #647ABB;
+    font-size: 14px;
+    line-height: 22px;
   }
   
   .error-banner {
@@ -99,11 +148,9 @@
   }
   
   .keyword-panel {
-    background: rgba(255, 255, 255, 0.6);
+    background: #F8FAFF;
     border-radius: 24px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    padding: 20px;
+    padding: 18px 27px 14px 22px;
   }
   
   .keyword-panel--empty {
@@ -124,21 +171,26 @@
   .keyword-panel__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 9px 18px;
+    padding: 3px 0; /* 칩 그림자가 잘리지 않게 */
   }
   
   .keyword-chip {
     display: inline-flex;
     align-items: center;
-    line-height: 1;
+    justify-content: center;
     white-space: nowrap;
     background: #fff;
-    border: 1px solid #DCE3FA;
-    border-radius: 999px;
-    padding: 8px 16px;
-    font-size: 13px;
+    border: none;
+    border-radius: 20px;
+    height: 32px;
+    padding: 0 16px;
+    font-size: 12px;
     font-weight: 500;
+    line-height: 15.6px;
     color: #5C5C5C;
+    /* 부드럽게 퍼지는 단일 그림자 (이중 그림자는 경계가 끊겨 보임) */
+    box-shadow: 0 2px 10px rgba(142, 165, 232, 0.5);
   }
   
   .keyword-chip--muted {
@@ -168,20 +220,28 @@
     opacity: 1;
   }
   
-  .record-bottom-bar {
+  /* 하단 입력 영역: 입력바 + 바깥의 원형 마이크 버튼 */
+  .record-bottom-area {
     position: absolute; /* 브라우저 창이 아닌 앱 프레임 기준으로 고정 */
     bottom: 24px;
     left: 20px;
     right: 20px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.60) 0%, rgba(142, 165, 232, 0.30) 47%, rgba(255, 255, 255, 0.60) 100%);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 26px;
-    padding: 10px 12px;
-    box-shadow: 0 4px 20px rgba(142, 165, 232, 0.35);
+    gap: 12px;
+  }
+
+  .record-bottom-bar {
+    flex: 1;
+    min-width: 0;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    /* 부드러운 뉴모피즘 느낌 — 가로 색 구간이 있는 그라데이션은 끊겨 보임 */
+    background: linear-gradient(180deg, #FDFDFF 0%, #E9EEFB 100%);
+    border-radius: 28px;
+    padding: 10px 16px;
+    box-shadow: 0 8px 18px rgba(142, 165, 232, 0.28), inset 0 1px 3px rgba(255, 255, 255, 0.9);
   }
   
   .record-bottom-bar__input {
@@ -199,19 +259,19 @@
   }
   
   .mic-btn {
-    width: 44px;
-    height: 44px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     border: none;
-    background: #ADC0F8;
-    color: #fff;
+    background: #fff;
+    color: #5C5C5C;
     font-size: 16px;
     cursor: pointer;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(173, 192, 248, 0.4);
+    box-shadow: 0 4px 14px rgba(142, 165, 232, 0.35);
     transition: transform 0.1s;
   }
   
@@ -224,8 +284,8 @@
   }
   
   .mic-btn--active {
-    background: #e05656;
-    box-shadow: 0 2px 8px rgba(224, 86, 86, 0.4);
+    background: #fff;
+    color: #5C5C5C;
   }
   
   .voice-wave {
@@ -239,21 +299,80 @@
   }
   
   .voice-wave__bar {
-    width: 2px;
+    width: 2.5px;
     height: 12px;
-    background: #647ABB;
+    background: #fff;
     border-radius: 2px;
-    box-shadow: 0 0 4px rgba(100, 122, 187, 0.6);
+    box-shadow: 0 0 3px rgba(255, 255, 255, 0.9), 0 1px 2px rgba(142, 165, 232, 0.35);
     animation: wave 0.8s infinite ease-in-out;
   }
   .voice-wave__bar:nth-child(odd) { animation-delay: 0.1s; }
   .voice-wave__bar:nth-child(3n) { animation-delay: 0.3s; }
+
+  /* 대기 상태: 움직이지 않는 파형 */
+  .voice-wave--idle .voice-wave__bar {
+    animation: none;
+  }
+  .voice-wave--idle .voice-wave__bar:nth-child(3n) { height: 16px; }
+  .voice-wave--idle .voice-wave__bar:nth-child(4n) { height: 8px; }
   
   @keyframes wave {
     0%, 100% { height: 6px; }
     50% { height: 20px; }
   }
   
+  /* ===== 키워드 패널 안 '이 장소가 맞나요?' 인라인 확인 ===== */
+  .location-inline-confirm {
+    margin-top: 29px;
+  }
+
+  .location-inline-confirm__label {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 22px;
+    color: #647ABB;
+    margin: 0 0 9px;
+  }
+
+  .location-inline-confirm__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: #D6DFFB;
+    border-radius: 10px;
+    padding: 10px 16px;
+    min-height: 45px;
+    backdrop-filter: blur(0.6px);
+  }
+
+  .location-inline-confirm__address {
+    font-size: 14px;
+    color: #5C5C5C;
+    line-height: 20.7px;
+    min-width: 0;
+  }
+
+  .location-inline-confirm__actions {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    font-size: 15px;
+    font-weight: 500;
+    color: #909090;
+    cursor: pointer;
+    padding: 6px;
+  }
+
+  .link-btn--primary {
+    color: #647ABB;
+  }
+
   /* ===== 위치 확인 모달 ===== */
   .location-modal-overlay {
     position: fixed;
@@ -278,16 +397,26 @@
   }
   
   .location-modal__header {
+    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    padding: 8px 0;
   }
-  
+
   .location-modal__title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #647abb;
+    font-size: 24px;
+    font-weight: 700;
+    color: #8EA5E8;
+    text-align: center;
     margin: 0;
+  }
+
+  .location-modal__close {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
   }
   
   .location-modal__close {
@@ -332,10 +461,11 @@
   
   .location-modal__question {
     text-align: center;
-    font-size: 15px;
+    font-size: 18px;
+    font-weight: 500;
     color: #5c5c5c;
     margin: 0;
-    line-height: 1.6;
+    line-height: 26px;
   }
   
   .location-modal__actions {
@@ -345,11 +475,13 @@
   
   .location-modal__btn {
     flex: 1;
+    height: 48px;
     padding: 12px;
     border-radius: 12px;
     border: none;
-    font-size: 15px;
+    font-size: 20px;
     font-weight: 600;
+    letter-spacing: 1.2px;
     cursor: pointer;
   }
   
@@ -517,7 +649,7 @@
 
   /* 분석 중(로딩 점) — 화면 정중앙 */
 .record-analyzing {
-    position: fixed;
+    position: absolute; /* 앱 프레임 기준 중앙 */
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -537,7 +669,7 @@
   
   /* 저장 중 — 화면 전체 정중앙 */
   .record-saving {
-    height: 100vh;
+    height: 100%;
     background: #F3F7FF;
     display: flex;
     flex-direction: column;

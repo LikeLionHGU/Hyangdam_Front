@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import RecordHeader from "./RecordHeader.jsx";
 import KeywordCarousel from "./KeywordCarousel.jsx";
 import LocationConfirmModal from "./LocationConfirmModal.jsx";
+import LocationInlineConfirm from "./LocationInlineConfirm.jsx";
 import MicIcon from "./MicIcon.jsx";
 import { mockAnalyze } from "./dummyRecordData";
 import { analyzeWithGPT } from "./analyzeWithGPT";
@@ -17,9 +18,12 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
   const [liveText, setLiveText] = useState("");
   const [analyzingText, setAnalyzingText] = useState("");
   const [pendingLocation, setPendingLocation] = useState(null);
+  const [showMapModal, setShowMapModal] = useState(false); // '네' 누르면 지도 확인 모달
   const [errorMessage, setErrorMessage] = useState(null);
   const inputModeRef = useRef("text");
   const recognitionRef = useRef(null);
+  const scrollRef = useRef(null);
+  const finalTextRef = useRef(""); // 확정된 음성 텍스트 (중간 결과와 분리 관리)
   const geminiHistoryRef = useRef([]);
   const lastAddressGuessRef = useRef("");
   const rejectCountRef = useRef(0);
@@ -36,15 +40,19 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
     recognition.interimResults = true;
 
     recognition.onresult = (event) => {
-      let finalText = "";
+      // 확정된 문장은 누적하고, 말하는 중인 중간 결과는 뒤에 붙여 실시간 표시
+      let interimText = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalText += event.results[i][0].transcript;
+          finalTextRef.current = finalTextRef.current
+            ? finalTextRef.current + " " + transcript
+            : transcript;
+        } else {
+          interimText += transcript;
         }
       }
-      if (finalText) {
-        setLiveText((prev) => (prev ? prev + " " + finalText : finalText));
-      }
+      setLiveText((finalTextRef.current + " " + interimText).trim());
     };
 
     recognition.onend = () => {
@@ -67,6 +75,7 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
       return;
     }
     inputModeRef.current = "voice";
+    finalTextRef.current = "";
     setLiveText("");
     setPhase("RECORDING");
     recognitionRef.current.start();
@@ -151,6 +160,8 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
         setPendingLocation({
           address: result.address || lastAddressGuessRef.current,
         });
+        setAnalyzingText("");
+        setLiveText(""); // 입력창에 글씨가 남지 않도록 정리
         setPhase("AWAITING_LOCATION_CONFIRM");
         return;
       }
@@ -158,6 +169,8 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
       setAnalyzingText("");
 
       if (!usedFallback && inputModeRef.current === "voice" && recognitionRef.current) {
+        finalTextRef.current = ""; // 다음 턴 녹음 전에 이전 확정 텍스트 초기화
+        setLiveText("");
         setPhase("RECORDING");
         recognitionRef.current.start();
       } else {
@@ -178,34 +191,34 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
     });
   };
 
+  // 인라인 '아니오' → 직접 검색 화면으로 이동
   const handleRejectLocation = () => {
     if (pendingLocation?.address) {
       rejectedAddressesRef.current.push(pendingLocation.address);
     }
-    rejectCountRef.current += 1;
-    setPendingLocation(null);
-
-    if (rejectCountRef.current >= MAX_LOCATION_RETRIES) {
-      onGiveUpLocation({
-        turns,
-        geminiHistory: geminiHistoryRef.current,
-      });
-      return;
-    }
-
-    setAnalyzingText("");
-    setPhase("IDLE");
+    setShowMapModal(false);
+    onGiveUpLocation({
+      turns,
+      geminiHistory: geminiHistoryRef.current,
+    });
   };
 
   const latestTurn = turns[turns.length - 1];
+
+  // 대화가 쌓이면 항상 최신 내용이 보이도록 아래로 스크롤
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [turns, liveText, analyzingText, phase]);
 
   return (
     <div className="record-screen">
       <RecordHeader onBack={onBack} onClose={onClose} />
 
-      <div className="record-screen__scroll">
+      <div className="record-screen__scroll" ref={scrollRef}>
         {errorMessage && <div className="error-banner">{errorMessage}</div>}
-        {turns.length === 0 && phase === "IDLE" && (
+        {turns.length === 0 && phase === "IDLE" && !liveText && (
           <div className="record-empty">
             <p className="record-empty__title">추억을 들려주세요</p>
             <p className="record-empty__sub">
@@ -215,15 +228,23 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
           </div>
         )}
 
-        {phase === "RECORDING" && liveText && (
-          <p className="record-screen__transcript">{liveText}</p>
-        )}
-        {phase === "ANALYZING" && analyzingText && (
-          <p className="record-screen__transcript">{analyzingText}</p>
-        )}
-        {phase !== "RECORDING" && phase !== "ANALYZING" && latestTurn && (
-          <p className="record-screen__transcript">{latestTurn.transcript}</p>
-        )}
+        {/* 지금까지의 대화가 채팅처럼 쌓인다 */}
+        <div className="chat-log">
+          {turns.map((turn, i) => (
+            <Fragment key={i}>
+              <p className="chat-msg chat-msg--user">{turn.transcript}</p>
+              {turn.followUpQuestion && (
+                <p className="chat-msg chat-msg--ai">{turn.followUpQuestion}</p>
+              )}
+            </Fragment>
+          ))}
+          {phase === "RECORDING" && liveText && (
+            <p className="chat-msg chat-msg--user chat-msg--live">{liveText}</p>
+          )}
+          {phase === "ANALYZING" && analyzingText && (
+            <p className="chat-msg chat-msg--user">{analyzingText}</p>
+          )}
+        </div>
 
         {phase === "ANALYZING" && (
           <div className="record-analyzing">
@@ -238,64 +259,67 @@ function RecordScreen({ onLocationConfirmed, onGiveUpLocation, onBack, onClose }
       </div>
 
       <div className="record-fixed-panel">
-        {latestTurn && phase !== "ANALYZING" && (
-          <div className="followup-bubble">ex) {latestTurn.followUpQuestion}</div>
-        )}
-
-        {turns.length > 0 ? (
+        {turns.length > 0 && (
           <div className="keyword-panel">
             <KeywordCarousel turns={turns} />
+            {phase === "AWAITING_LOCATION_CONFIRM" && pendingLocation && (
+              <LocationInlineConfirm
+                address={pendingLocation.address}
+                onConfirm={() => setShowMapModal(true)}
+                onReject={handleRejectLocation}
+              />
+            )}
           </div>
-        ) : (
-          phase === "IDLE" && <div className="keyword-panel keyword-panel--empty" />
         )}
       </div>
 
-      <div className="record-bottom-bar">
+      <div className="record-bottom-area">
+        <div className="record-bottom-bar">
+          {/* 항상 파형 아이콘 표시 — 녹음 중에만 움직인다 */}
+          <div className={phase === "RECORDING" ? "voice-wave" : "voice-wave voice-wave--idle"}>
+            {Array.from({ length: 24 }).map((_, i) => (
+              <span key={i} className="voice-wave__bar" />
+            ))}
+          </div>
+        </div>
+
         {phase === "RECORDING" ? (
-          <>
-            <div className="voice-wave">
-              {Array.from({ length: 24 }).map((_, i) => (
-                <span key={i} className="voice-wave__bar" />
-              ))}
-            </div>
-            <button
-              type="button"
-              className="mic-btn mic-btn--active"
-              onClick={stopRecording}
-              aria-label="녹음 종료"
-            >
-              ■
-            </button>
-          </>
+          <button
+            type="button"
+            className="mic-btn mic-btn--active"
+            onClick={stopRecording}
+            aria-label="녹음 종료"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <rect
+                x="3"
+                y="3"
+                width="18"
+                height="18"
+                rx="2"
+                fill="rgba(173, 173, 173, 0.2)"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          </button>
         ) : (
-          <>
-            <input
-              type="text"
-              className="record-bottom-bar__input"
-              value={liveText}
-              onChange={(e) => setLiveText(e.target.value)}
-              placeholder="어떤 추억이 떠오르나요"
-              onKeyDown={(e) => e.key === "Enter" && submitTypedText()}
-            />
-            <button
-              type="button"
-              className="mic-btn"
-              onClick={startRecording}
-              aria-label="음성 녹음"
-            >
-              <MicIcon />
-            </button>
-          </>
+          <button
+            type="button"
+            className="mic-btn"
+            onClick={startRecording}
+            aria-label="음성 녹음"
+          >
+            <MicIcon />
+          </button>
         )}
       </div>
 
-      {phase === "AWAITING_LOCATION_CONFIRM" && pendingLocation && (
+      {showMapModal && pendingLocation && (
         <LocationConfirmModal
           address={pendingLocation.address}
           onConfirm={handleConfirmLocation}
-          onReject={handleRejectLocation}
-          onClose={handleRejectLocation}
+          onClose={() => setShowMapModal(false)}
         />
       )}
     </div>

@@ -37,7 +37,7 @@ function ensureKakaoLoaded() {
   });
 }
 
-function LocationConfirmModal({ address, onConfirm, onReject, onClose }) {
+function LocationConfirmModal({ address, onConfirm, onClose }) {
   const mapContainerRef = useRef(null);
   const [coords, setCoords] = useState(null);
   const [error, setError] = useState(null);
@@ -67,7 +67,29 @@ function LocationConfirmModal({ address, onConfirm, onReject, onClose }) {
           if (!container || cancelled) return;
           const center = new kakao.maps.LatLng(geo.lat, geo.lng);
           const map = new kakao.maps.Map(container, { center, level: 4 });
-          new kakao.maps.Marker({ position: center, map });
+          // 지도 페이지와 동일한 물방울 핀 (가운데 흰 점)
+          const pin = document.createElement("div");
+          pin.innerHTML = `
+            <div style="
+              position:relative;width:46px;height:46px;
+              filter:drop-shadow(0 3px 6px rgba(34,34,59,0.35));
+            ">
+              <div style="
+                width:46px;height:46px;border-radius:50% 50% 50% 0;
+                background:#8EA5E8;transform:rotate(-45deg);
+              "></div>
+              <div style="
+                position:absolute;top:15.3px;left:16.4px;
+                width:13.1px;height:13.1px;border-radius:50%;background:#fff;
+              "></div>
+            </div>
+          `;
+          new kakao.maps.CustomOverlay({
+            position: center,
+            content: pin,
+            yAnchor: 1,
+            map,
+          });
           // 컨테이너 크기가 뒤늦게 잡혀 지도가 회색으로 나오는 경우 대비
           setTimeout(() => map.relayout(), 100);
           setPhase("ready");
@@ -122,13 +144,6 @@ function LocationConfirmModal({ address, onConfirm, onReject, onClose }) {
         </p>
 
         <div className="location-modal__actions">
-          <button
-            type="button"
-            className="location-modal__btn location-modal__btn--reject"
-            onClick={onReject}
-          >
-            아니오
-          </button>
           <button
             type="button"
             className="location-modal__btn location-modal__btn--confirm"

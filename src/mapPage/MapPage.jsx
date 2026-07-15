@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { X } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { X, GalleryVerticalEnd } from 'lucide-react';
 import { useKakaoLoader } from './component/useKakaoLoader';
 import { loadMemories, addMemory } from './api';
 import { loadGallery } from '../galleryPage/galleryStore';
@@ -19,6 +20,32 @@ const StatusBanner = styled.div`
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   padding: 32px; text-align: center; color: ${({ theme }) => theme.colors.inkSoft}; font-size: 13px; line-height: 1.6;
 `;
+// 저장 직후 갤러리로 자연스럽게 이어주는 확인 카드
+const SavedBanner = styled.div`
+  position: absolute; left: 20px; right: 20px; bottom: 24px; z-index: 500;
+  background: #fff; border-radius: 20px; padding: 18px;
+  box-shadow: 0 6px 24px rgba(34, 34, 59, 0.18);
+  display: flex; flex-direction: column; gap: 12px;
+
+  .title { font-size: 17px; font-weight: 600; color: #5C5C5C; text-align: center; }
+
+  button.go {
+    height: 52px; border-radius: 100px;
+    background: #8EA5E8; color: #fff;
+    font-size: 17px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    box-shadow: 0 4px 14px rgba(142, 165, 232, 0.45);
+    transition: transform 0.15s ease;
+    &:active { transform: scale(0.97); }
+  }
+
+  button.close {
+    position: absolute; top: 8px; right: 8px;
+    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+    color: #ADADAD;
+  }
+`;
+
 const EmptyBanner = styled.div`
   position: absolute; left: 20px; right: 20px; bottom: 24px; z-index: 400;
   background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px);
@@ -72,6 +99,9 @@ function pinHtml() {
 
 export default function MapPage() {
   const { loaded, error } = useKakaoLoader();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [showSaved, setShowSaved] = useState(Boolean(location.state?.justSaved));
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const overlaysRef = useRef([]);
@@ -153,6 +183,18 @@ export default function MapPage() {
       )}
       {loaded && memories.length === 0 && (
         <EmptyBanner>{'아직 지도에 남긴 추억이 없어요.\n사진을 저장할 때 장소를 등록해보세요.'}</EmptyBanner>
+      )}
+      {showSaved && (
+        <SavedBanner>
+          <button className="close" onClick={() => setShowSaved(false)} aria-label="닫기">
+            <X size={20} />
+          </button>
+          <div className="title">추억이 지도에 저장됐어요!</div>
+          <button className="go" onClick={() => navigate('/gallery')}>
+            <GalleryVerticalEnd size={20} strokeWidth={2.2} />
+            갤러리에서 모아보기
+          </button>
+        </SavedBanner>
       )}
       {selected && (
         <DetailCard>

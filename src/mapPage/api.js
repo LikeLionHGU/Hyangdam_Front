@@ -1,19 +1,46 @@
 // 지명을 위경도로 변환. AI 연동 시 LLM이 추출한 지명 텍스트를 그대로 넘기면 됩니다.
-export function geocodePlace(placeText) {
-  return new Promise((resolve, reject) => {
-    if (!window.kakao?.maps?.services) {
-      reject(new Error('카카오맵이 아직 로드되지 않았습니다.'));
-      return;
-    }
-    const places = new window.kakao.maps.services.Places();
-    places.keywordSearch(placeText, (data, status) => {
-      if (status === window.kakao.maps.services.Status.OK && data.length) {
-        resolve({ lat: parseFloat(data[0].y), lng: parseFloat(data[0].x) });
-      } else {
-        resolve(null);
-      }
+// AI가 추정한 주소는 실제 행정구역명과 다를 수 있어(예: '북구' 누락, 수몰로 사라진 리),
+// 못 찾으면 주소를 뒤에서부터 한 단계씩 줄여가며(리→면→시) 재시도한다.
+export async function geocodePlace(placeText) {
+  if (!window.kakao?.maps?.services) {
+    throw new Error('카카오맵이 아직 로드되지 않았습니다.');
+  }
+  const { services } = window.kakao.maps;
+
+  const byAddress = (query) =>
+    new Promise((resolve) => {
+      new services.Geocoder().addressSearch(query, (data, status) => {
+        resolve(
+          status === services.Status.OK && data.length
+            ? { lat: parseFloat(data[0].y), lng: parseFloat(data[0].x) }
+            : null
+        );
+      });
     });
-  });
+
+  const byKeyword = (query) =>
+    new Promise((resolve) => {
+      new services.Places().keywordSearch(query, (data, status) => {
+        resolve(
+          status === services.Status.OK && data.length
+            ? { lat: parseFloat(data[0].y), lng: parseFloat(data[0].x) }
+            : null
+        );
+      });
+    });
+
+  const tokens = placeText.trim().split(/\s+/);
+  const queries = [];
+  // 전체 → 마지막 단어를 하나씩 제거 (단, 지역 오인 방지를 위해 최소 2단어까지만)
+  for (let n = tokens.length; n >= Math.min(2, tokens.length); n--) {
+    queries.push(tokens.slice(0, n).join(' '));
+  }
+
+  for (const query of queries) {
+    const hit = (await byAddress(query)) || (await byKeyword(query));
+    if (hit) return hit;
+  }
+  return null;
 }
 
 // 키워드로 장소 후보 여러 건 검색 (이름·주소·좌표)

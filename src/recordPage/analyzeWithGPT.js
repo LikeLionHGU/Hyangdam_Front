@@ -65,19 +65,32 @@ export async function analyzeWithGPT(history, options = {}) {
       `그리고 addressGuess는 이전 후보와 반드시 달라야 하며, 확실치 않으면 빈 문자열로 둬.`;
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: toOpenAIMessages(history, systemPrompt),
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    }),
-  });
+  // 네트워크 전환(ERR_NETWORK_CHANGED) 같은 일시적 오류는 잠깐 쉬었다 재시도
+  let response;
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: toOpenAIMessages(history, systemPrompt),
+          response_format: { type: "json_object" },
+          temperature: 0.7,
+        }),
+      });
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
+  }
+  if (lastError) throw lastError;
 
   if (!response.ok) {
     const errText = await response.text();
