@@ -1,6 +1,10 @@
-.record-screen {
+.record-page {
+    height: 100%;
+  }
+
+  .record-screen {
     position: relative;
-    height: 100vh;
+    height: 100%; /* 앱 프레임(393px 화면) 안에서 동작하도록 100vh 대신 100% */
     background: #F3F7FF;
     font-family: -apple-system, "Pretendard", sans-serif;
   }
@@ -28,7 +32,7 @@
   }
   
   .record-screen__scroll {
-    height: calc(100vh - 56px);
+    height: calc(100% - 56px);
     overflow-y: auto;
     padding: 8px 24px 320px;
   }
@@ -75,7 +79,7 @@
   }
   
   .record-fixed-panel {
-    position: fixed;
+    position: absolute; /* 브라우저 창이 아닌 앱 프레임 기준으로 고정 */
     left: 20px;
     right: 20px;
     bottom: 104px;
@@ -166,7 +170,7 @@
   }
   
   .record-bottom-bar {
-    position: fixed;
+    position: absolute; /* 브라우저 창이 아닌 앱 프레임 기준으로 고정 */
     bottom: 24px;
     left: 20px;
     right: 20px;
@@ -358,7 +362,7 @@
   }
 
   .location-search-page {
-    height: 100vh;
+    height: 100%; /* 앱 프레임 기준 */
     background: #F3F7FF;
     font-family: -apple-system, "Pretendard", sans-serif;
     display: flex;

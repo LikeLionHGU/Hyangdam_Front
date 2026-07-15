@@ -5,6 +5,7 @@
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import OpenAI, { toFile } from 'openai';
@@ -37,6 +38,11 @@ app.use(express.json({ limit: '25mb' }));
 const outputDirectory = path.join(process.cwd(), 'server', 'outputs');
 fs.mkdirSync(outputDirectory, { recursive: true });
 app.use('/outputs', express.static(outputDirectory));
+
+// 공유된 추억 저장 폴더
+const sharesDirectory = path.join(process.cwd(), 'server', 'shares');
+fs.mkdirSync(sharesDirectory, { recursive: true });
+app.use('/shares', express.static(sharesDirectory));
 
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: '향담 백엔드 서버가 정상적으로 실행 중입니다.' });
@@ -202,6 +208,85 @@ app.get('/api/animate/:id', async (req, res) => {
     console.error('영상 상태 조회 오류:', error);
     return res.status(500).json({ success: false, message: friendlyError(error, '영상 상태 조회 중 오류가 발생했습니다.') });
   }
+});
+
+// 추억 공유 링크 생성: 사진(원본·컬러)과 영상을 코드로 저장하고 공유 페이지 주소를 만든다.
+// body: { title, items: [{ label, image?(dataURL), video?(경로) }] }
+app.post('/api/share', async (req, res) => {
+  try {
+    const { title, items } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: '공유할 항목이 없습니다.' });
+    }
+
+    const code = crypto.randomBytes(4).toString('hex');
+    const manifest = { title: title || '소중한 추억', createdAt: Date.now(), files: [] };
+
+    items.forEach((item, i) => {
+      if (item.image) {
+        const match = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(item.image);
+        if (!match) return;
+        const fileName = `${code}-${i}.${match[1] === 'jpeg' ? 'jpg' : match[1]}`;
+        fs.writeFileSync(path.join(sharesDirectory, fileName), Buffer.from(match[2], 'base64'));
+        manifest.files.push({ type: 'photo', label: item.label || '', src: `/shares/${fileName}` });
+      }
+      if (item.video) {
+        // 영상은 이미 /outputs 에 있으므로 경로만 참조
+        const videoPath = item.video.startsWith('http') ? new URL(item.video).pathname : item.video;
+        manifest.files.push({ type: 'video', label: item.label || '', src: videoPath });
+      }
+    });
+
+    fs.writeFileSync(path.join(sharesDirectory, `${code}.json`), JSON.stringify(manifest));
+    console.log('공유 링크 생성:', code, `(${manifest.files.length}개 항목)`);
+    return res.json({ success: true, code });
+  } catch (error) {
+    console.error('공유 링크 생성 오류:', error);
+    return res.status(500).json({ success: false, message: '공유 링크 생성에 실패했습니다.' });
+  }
+});
+
+// 공유 페이지: 친구가 앱 없이 브라우저로 추억을 볼 수 있는 화면
+app.get('/share/:code', (req, res) => {
+  const code = req.params.code.replace(/[^a-z0-9]/gi, '');
+  const manifestPath = path.join(sharesDirectory, `${code}.json`);
+
+  if (!fs.existsSync(manifestPath)) {
+    return res.status(404).send(`<!doctype html><html lang="ko"><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <body style="font-family:sans-serif;background:#F3F7FF;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+      <p style="color:#909090;font-size:17px;">존재하지 않거나 만료된 공유 링크예요.</p></body></html>`);
+  }
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  const media = manifest.files
+    .map((f) =>
+      f.type === 'video'
+        ? `<figure><video src="${f.src}" autoplay loop muted playsinline controls></video><figcaption>${f.label}</figcaption></figure>`
+        : `<figure><img src="${f.src}" alt="추억 사진"><figcaption>${f.label}</figcaption></figure>`
+    )
+    .join('\n');
+
+  res.send(`<!doctype html><html lang="ko"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>향담 — 추억 공유</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Pretendard', -apple-system, sans-serif; background: #F3F7FF; color: #5C5C5C; }
+      .wrap { max-width: 480px; margin: 0 auto; padding: 28px 20px 40px; }
+      h1 { font-size: 22px; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+      .sub { font-size: 14px; color: #909090; margin-bottom: 24px; }
+      figure { margin-bottom: 20px; }
+      img, video { width: 100%; border-radius: 20px; display: block; box-shadow: 0 4px 16px rgba(34,34,59,0.1); }
+      figcaption { font-size: 13px; color: #909090; margin-top: 8px; text-align: center; }
+      footer { text-align: center; font-size: 13px; color: #ADADAD; margin-top: 32px; }
+    </style></head><body>
+    <div class="wrap">
+      <h1>${manifest.title}</h1>
+      <p class="sub">소중한 추억을 함께 봐요</p>
+      ${media}
+      <footer>향담(Hyangdam)에서 만든 추억이에요</footer>
+    </div></body></html>`);
 });
 
 app.listen(PORT, () => {
