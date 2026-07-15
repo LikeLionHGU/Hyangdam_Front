@@ -33,9 +33,9 @@ const SheetHead = styled.div`
 
   h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: 21px;
     font-weight: 600;
-    line-height: 26px;
+    line-height: 30px;
     color: #5C5C5C;
     white-space: pre-line;
   }
@@ -45,9 +45,9 @@ const SheetHead = styled.div`
 
 const Hint = styled.p`
   margin: 0;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.6;
-  color: #ADADAD;
+  color: #909090;
 `;
 
 const Candidate = styled.button`
@@ -61,12 +61,14 @@ const Candidate = styled.button`
   text-align: left;
   box-shadow: 0 2px 8px rgba(34, 34, 59, 0.05);
   color: #8EA5E8;
+  transition: transform 0.15s ease;
+  &:active { transform: scale(0.98); }
 
   .info { flex: 1; min-width: 0; }
-  .name { font-size: 15px; font-weight: 600; color: #5C5C5C; }
+  .name { font-size: 17px; font-weight: 600; color: #5C5C5C; }
   .addr {
-    font-size: 12px;
-    color: #ADADAD;
+    font-size: 14px;
+    color: #909090;
     margin-top: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -85,7 +87,7 @@ const SearchRow = styled.form`
     border: none;
     border-radius: 16px;
     background: #fff;
-    font-size: 14px;
+    font-size: 16px;
     color: #5C5C5C;
     box-shadow: 0 2px 8px rgba(34, 34, 59, 0.05);
 
@@ -106,9 +108,9 @@ const SearchRow = styled.form`
 `;
 
 const GhostBtn = styled.button`
-  height: 44px;
+  height: 48px;
   border-radius: 16px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   color: #8EA5E8;
 `;
@@ -116,9 +118,9 @@ const GhostBtn = styled.button`
 const Status = styled.div`
   padding: 20px 0;
   text-align: center;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
-  color: #ADADAD;
+  color: #909090;
   line-height: 1.7;
 `;
 
@@ -138,11 +140,24 @@ export default function PlacePickerModal({ photo, onComplete }) {
     detectedRef.current = true;
     (async () => {
       try {
-        const { placeQuery } = await detectPlaceFromImage(photo);
-        const found = placeQuery ? await searchPlaces(placeQuery) : [];
-        if (found.length) {
-          setCandidates(found);
-          setQuery(placeQuery);
+        const { candidates: queries } = await detectPlaceFromImage(photo);
+        // 추정 검색어들을 모두 검색해서 후보를 합친다 (좌표 기준 중복 제거, 최대 5개)
+        const results = await Promise.all(queries.map((q) => searchPlaces(q)));
+        const merged = [];
+        const seen = new Set();
+        for (const list of results) {
+          for (const p of list) {
+            const key = `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(p);
+            }
+          }
+        }
+        const top = merged.slice(0, 5);
+        if (top.length) {
+          setCandidates(top);
+          setQuery(queries[0] || '');
           setMode('suggest');
         } else {
           setMode('manual');

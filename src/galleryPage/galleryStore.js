@@ -1,5 +1,6 @@
 // 추억 갤러리 저장소 (localStorage)
-// item: { id, type: 'photo' | 'video' | 'text', image?, video?, text?, createdAt }
+// item: { id, type: 'photo' | 'video' | 'text',
+//         image?(대표 이미지), original?(원본), colored?(컬러 변환 여부), video?, text?, createdAt }
 
 const KEY = 'hyangdam_gallery';
 
@@ -37,24 +38,38 @@ function compressImage(dataUrl) {
 
 export async function addPhotoToGallery(dataUrl) {
   const image = await compressImage(dataUrl);
-  const item = { id: `${Date.now()}`, type: 'photo', image, createdAt: Date.now() };
+  const item = {
+    id: `${Date.now()}`,
+    type: 'photo',
+    image,
+    original: image,
+    colored: false,
+    createdAt: Date.now(),
+  };
   saveGallery([item, ...loadGallery()]);
   return item;
 }
 
 // 컬러 변환/영상 변환 후 저장 시, 업로드 때 등록된 항목을 갱신
-// videoUrl이 있으면 영상 항목이 되고 image는 포스터로 쓰인다.
-export async function updateGalleryPhoto(id, dataUrl, videoUrl = null) {
+// 원본(original)은 유지하고 대표 이미지를 교체한다.
+// colored: 컬러 '변환'을 거친 경우에만 true (원래 컬러였던 사진은 false 유지)
+export async function updateGalleryPhoto(id, dataUrl, videoUrl = null, { colored = true } = {}) {
   const image = await compressImage(dataUrl);
-  const patch = videoUrl ? { image, type: 'video', video: videoUrl } : { image };
+  const patch = {
+    image,
+    ...(colored ? { colored: true } : {}),
+    ...(videoUrl ? { type: 'video', video: videoUrl } : {}),
+  };
   const list = loadGallery();
   const idx = list.findIndex((item) => item.id === id);
   if (idx === -1) {
-    const item = { id: `${Date.now()}`, type: 'photo', ...patch, createdAt: Date.now() };
+    const item = { id: `${Date.now()}`, type: 'photo', original: image, ...patch, createdAt: Date.now() };
     saveGallery([item, ...list]);
     return item;
   }
-  list[idx] = { ...list[idx], ...patch };
+  // 예전 구조 항목(원본 미보관)은 덮어쓰기 전의 이미지를 원본으로 보존
+  const original = list[idx].original || list[idx].image;
+  list[idx] = { ...list[idx], original, ...patch };
   saveGallery(list);
   return list[idx];
 }

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import WeekStrip from './component/WeekStrip';
 import MapPreview from './component/MapPreview';
 import MemoryActionCard from './component/MemoryActionCard';
-import { PHOTO_STORAGE_KEY, PHOTO_ID_KEY } from '../photoPage/PhotoPage';
+import { PHOTO_STORAGE_KEY, PHOTO_ID_KEY, PHOTO_RESULT_KEY, PHOTO_VIDEO_KEY } from '../photoPage/PhotoPage';
 import { fileToDataUrl } from '../photoPage/colorize';
 import { addPhotoToGallery } from '../galleryPage/galleryStore';
 
@@ -46,6 +46,9 @@ export default function HomePage() {
     try {
       const dataUrl = await fileToDataUrl(file);
       sessionStorage.setItem(PHOTO_STORAGE_KEY, dataUrl);
+      // 이전 사진의 변환 결과·영상 기록 초기화
+      sessionStorage.removeItem(PHOTO_RESULT_KEY);
+      sessionStorage.removeItem(PHOTO_VIDEO_KEY);
       const item = await addPhotoToGallery(dataUrl);
       sessionStorage.setItem(PHOTO_ID_KEY, item.id);
       navigate('/photo');

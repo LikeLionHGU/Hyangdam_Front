@@ -9,6 +9,8 @@ const Card = styled.button`
   height: 227px;
   border-radius: 24px;
   overflow: hidden;
+  transition: transform 0.15s ease;
+  &:active { transform: scale(0.97); }
   background-image: url(${({ $img }) => $img});
   background-size: cover;
   background-position: center;

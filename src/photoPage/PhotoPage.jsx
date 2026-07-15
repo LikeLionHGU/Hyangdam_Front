@@ -1,14 +1,17 @@
-import { useRef, useState } from 'react';
-import styled from 'styled-components';
+import { useEffect, useRef, useState } from 'react';
+import styled, { keyframes } from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Image as ImageIcon, Wand2, Download, Video, Minus } from 'lucide-react';
-import { colorizeImage, fileToDataUrl, frameForVideo, createAnimation, getAnimationStatus } from './colorize';
+import { ChevronLeft, Wand2, Download, Video, X, ImagePlus } from 'lucide-react';
+import { colorizeImage, fileToDataUrl, compressDataUrl, frameForVideo, createAnimation, getAnimationStatus, isMonochromePhoto } from './colorize';
 import { addPhotoToGallery, updateGalleryPhoto } from '../galleryPage/galleryStore';
 import { addMemory } from '../mapPage/api';
 import PlacePickerModal from './component/PlacePickerModal';
 
 export const PHOTO_STORAGE_KEY = 'hyangdam_photo';
 export const PHOTO_ID_KEY = 'hyangdam_photo_id';
+// 뒤로가기로 돌아와도 변환 결과가 유지되도록 세션에 함께 저장
+export const PHOTO_RESULT_KEY = 'hyangdam_photo_result';
+export const PHOTO_VIDEO_KEY = 'hyangdam_photo_video';
 
 const Wrap = styled.div`
   height: 100%;
@@ -29,14 +32,13 @@ const Bar = styled.div`
 
 const IconBtn = styled.button`
   position: absolute;
+  left: 12px;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #5C5C5C;
-  &.left { left: 12px; }
-  &.right { right: 12px; }
 `;
 
 const Title = styled.span`
@@ -50,84 +52,186 @@ const PhotoArea = styled.div`
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 
   img, video {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    pointer-events: none;
   }
+`;
+
+// 사진을 꾹 누르면 원본이 보인다는 안내 칩
+const CompareChip = styled.div`
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  border-radius: 100px;
+  background: rgba(20, 20, 35, 0.45);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  pointer-events: none;
+  white-space: nowrap;
+`;
+
+const spin = keyframes`
+  to { transform: rotate(360deg); }
+`;
+
+// 변환·생성 중 사진 위에 덮는 진행 오버레이
+const ProgressOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 20, 35, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #fff;
+  text-align: center;
+
+  .spinner {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    animation: ${spin} 0.9s linear infinite;
+  }
+
+  .main { font-size: 21px; font-weight: 600; }
+  .sub { font-size: 15px; opacity: 0.8; line-height: 1.6; white-space: pre-line; }
 `;
 
 const EmptyArea = styled.button`
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #ADADAD;
-  font-size: 14px;
+  gap: 12px;
+  color: #909090;
+  font-size: 17px;
   font-weight: 500;
+  line-height: 1.6;
+  white-space: pre-line;
+
+  svg { color: #8EA5E8; }
 `;
 
 const Footer = styled.div`
   flex-shrink: 0;
-  height: 104px;
-  position: relative;
+  min-height: 104px;
+  padding: 14px 20px 20px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 10px;
+`;
+
+const PillRow = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 `;
 
 const Pill = styled.button`
   height: 56px;
   padding: 8px 20px;
   border-radius: 100px;
-  background: rgba(255, 255, 255, 0.75);
+  background: ${({ $primary }) => ($primary ? '#8EA5E8' : 'rgba(255, 255, 255, 0.75)')};
+  color: ${({ $primary }) => ($primary ? '#fff' : '#5C5C5C')};
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 10px rgba(34, 34, 59, 0.08);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  color: #5C5C5C;
-  font-size: 16px;
-  font-weight: 500;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: transform 0.15s ease;
+
+  &.grow { flex: 1; max-width: 200px; }
   &:disabled { opacity: 0.6; }
+  &:active:not(:disabled) { transform: scale(0.96); }
 `;
 
-const Circle = styled.button`
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 60px;
+const GhostBtn = styled.button`
+  font-size: 15px;
+  font-weight: 500;
+  color: #909090;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+`;
+
+// 변환 진행 중 표시용 알약 (비활성 버튼 대신 산뜻한 진행 표시)
+const PillProgress = styled.div`
   height: 56px;
-  border-radius: 50px;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 10px rgba(34, 34, 59, 0.08);
-  display: flex;
+  padding: 8px 28px;
+  border-radius: 100px;
+  background: #8EA5E8;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(142, 165, 232, 0.45);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #444444;
-  &.left { left: 26px; }
-  &.right { right: 26px; color: #5C5C5C; }
-  &:disabled { opacity: 0.5; }
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    animation: ${spin} 0.9s linear infinite;
+  }
 `;
 
 export default function PhotoPage() {
   const navigate = useNavigate();
   const fileRef = useRef(null);
   const [photo, setPhoto] = useState(() => sessionStorage.getItem(PHOTO_STORAGE_KEY));
-  const [result, setResult] = useState(null);
-  const [video, setVideo] = useState(null);
+  const [result, setResult] = useState(() => sessionStorage.getItem(PHOTO_RESULT_KEY));
+  const [video, setVideo] = useState(() => sessionStorage.getItem(PHOTO_VIDEO_KEY));
   const [processing, setProcessing] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [animProgress, setAnimProgress] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [showOriginal, setShowOriginal] = useState(false);
+  const [holdOriginal, setHoldOriginal] = useState(false);
   const [showPlacePicker, setShowPlacePicker] = useState(false);
+  const [isColor, setIsColor] = useState(false); // 애초에 컬러 사진이면 변환 단계 생략
 
-  const shown = result && !showOriginal ? result : photo;
+  useEffect(() => {
+    let active = true;
+    if (!photo) return undefined;
+    isMonochromePhoto(photo).then((mono) => {
+      if (active) setIsColor(!mono);
+    });
+    return () => { active = false; };
+  }, [photo]);
+
+  const busy = processing || animating;
+  const ready = Boolean(result) || isColor; // 저장·영상 만들기가 가능한 상태
+  const workingImage = result || photo; // 영상·저장의 기준 이미지
+  const showVideo = video && !holdOriginal;
+  const shownImage = result && !holdOriginal ? result : photo;
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -136,23 +240,27 @@ export default function PhotoPage() {
     try {
       const dataUrl = await fileToDataUrl(file);
       sessionStorage.setItem(PHOTO_STORAGE_KEY, dataUrl);
+      sessionStorage.removeItem(PHOTO_RESULT_KEY);
+      sessionStorage.removeItem(PHOTO_VIDEO_KEY);
       const item = await addPhotoToGallery(dataUrl);
       sessionStorage.setItem(PHOTO_ID_KEY, item.id);
       setPhoto(dataUrl);
       setResult(null);
       setVideo(null);
-      setShowOriginal(false);
     } catch {
       alert('사진을 불러오지 못했어요. 다른 사진으로 시도해주세요.');
     }
   };
 
   const handleConvert = async () => {
-    if (!photo || processing) return;
+    if (!photo || busy) return;
     setProcessing(true);
     try {
-      setResult(await colorizeImage(photo));
-      setShowOriginal(false);
+      const colored = await colorizeImage(photo);
+      setResult(colored);
+      try {
+        sessionStorage.setItem(PHOTO_RESULT_KEY, await compressDataUrl(colored));
+      } catch { /* 세션 저장 실패해도 변환 자체는 유지 */ }
     } catch (err) {
       console.error(err);
       alert(err.message || '사진 변환에 실패했어요. 다른 사진으로 시도해주세요.');
@@ -163,17 +271,18 @@ export default function PhotoPage() {
 
   // 컬러 사진 → 3~5초 영상 생성 (수 분 소요, 완료까지 폴링)
   const handleAnimate = async () => {
-    if (!result || animating) return;
+    if (!ready || busy) return;
     setAnimating(true);
     setAnimProgress(0);
     try {
-      const framed = await frameForVideo(result);
+      const framed = await frameForVideo(workingImage);
       const { id } = await createAnimation(framed.dataUrl, framed.orientation);
       for (;;) {
         await new Promise((r) => setTimeout(r, 5000));
         const s = await getAnimationStatus(id);
         if (s.status === 'completed') {
           setVideo(s.url);
+          sessionStorage.setItem(PHOTO_VIDEO_KEY, s.url);
           break;
         }
         if (s.status === 'failed') {
@@ -190,10 +299,15 @@ export default function PhotoPage() {
   };
 
   const handleSave = async () => {
-    if (!result || saving) return;
+    if (!ready || saving || busy) return;
     setSaving(true);
     try {
-      await updateGalleryPhoto(sessionStorage.getItem(PHOTO_ID_KEY), result, video);
+      // 컬러 변환을 했거나 영상이 있을 때만 항목 갱신 (원래 컬러 사진 그대로면 이미 업로드 때 저장됨)
+      if (result || video) {
+        await updateGalleryPhoto(sessionStorage.getItem(PHOTO_ID_KEY), workingImage, video, {
+          colored: Boolean(result),
+        });
+      }
       setShowPlacePicker(true); // 저장 후 장소 확인 → 지도 핀 등록
     } catch (err) {
       console.error(err);
@@ -222,69 +336,97 @@ export default function PhotoPage() {
   return (
     <Wrap>
       <Bar>
-        <IconBtn className="left" onClick={() => navigate(-1)} aria-label="뒤로 가기">
+        <IconBtn onClick={() => navigate(-1)} aria-label="뒤로 가기">
           <ChevronLeft size={28} />
         </IconBtn>
         <Title>추억 사진</Title>
-        {result && (
-          <IconBtn
-            className="right"
-            onClick={() => setShowOriginal((v) => !v)}
-            aria-label="원본 보기"
-          >
-            <ImageIcon size={24} />
-          </IconBtn>
-        )}
       </Bar>
 
       {photo ? (
-        <PhotoArea>
-          {video && !showOriginal ? (
+        <PhotoArea
+          onPointerDown={() => result && !busy && setHoldOriginal(true)}
+          onPointerUp={() => setHoldOriginal(false)}
+          onPointerLeave={() => setHoldOriginal(false)}
+        >
+          {showVideo ? (
             <video src={video} autoPlay loop muted playsInline />
           ) : (
-            <img src={shown} alt="추억 사진" />
+            <img src={shownImage} alt="추억 사진" />
+          )}
+
+          {result && !busy && (
+            <CompareChip>
+              {holdOriginal ? '원본 사진' : '사진을 꾹 누르면 원본이 보여요'}
+            </CompareChip>
+          )}
+          {isColor && !result && !busy && (
+            <CompareChip>이미 컬러 사진이라 바로 저장할 수 있어요</CompareChip>
+          )}
+
+          {busy && (
+            <ProgressOverlay>
+              <div className="spinner" />
+              <div className="main">
+                {processing ? '컬러로 복원하는 중...' : `영상을 만드는 중... ${animProgress}%`}
+              </div>
+              <div className="sub">
+                {processing
+                  ? '30초에서 1분 정도 걸려요'
+                  : '2~3분 정도 걸려요\n화면을 벗어나지 말아주세요'}
+              </div>
+            </ProgressOverlay>
           )}
         </PhotoArea>
       ) : (
         <EmptyArea onClick={() => fileRef.current?.click()}>
-          사진을 선택해주세요
+          <ImagePlus size={44} strokeWidth={1.6} />
+          {'여기를 눌러\n간직하고 싶은 사진을 올려주세요'}
         </EmptyArea>
       )}
 
       <Footer>
-        {!result ? (
-          <Pill onClick={handleConvert} disabled={!photo || processing}>
-            <Wand2 size={24} strokeWidth={2} />
-            {processing ? '변환 중...' : '컬러로 변환'}
-          </Pill>
+        {!ready ? (
+          processing ? (
+            <PillProgress>
+              <div className="spinner" />
+              복원하고 있어요
+            </PillProgress>
+          ) : (
+            <Pill $primary className="grow" onClick={handleConvert} disabled={!photo}>
+              <Wand2 size={22} strokeWidth={2} />
+              컬러로 변환
+            </Pill>
+          )
+        ) : animating ? (
+          <PillProgress>
+            <div className="spinner" />
+            영상을 만들고 있어요 {animProgress}%
+          </PillProgress>
         ) : (
           <>
-            {!video && (
-              <Circle
-                className="left"
-                onClick={handleAnimate}
-                disabled={animating}
-                aria-label="영상으로 변환"
+            <PillRow>
+              {!video && (
+                <Pill className="grow" onClick={handleAnimate} disabled={saving}>
+                  <Video size={22} strokeWidth={2} />
+                  영상 만들기
+                </Pill>
+              )}
+              <Pill $primary className="grow" onClick={handleSave} disabled={saving}>
+                <Download size={22} strokeWidth={2} />
+                {saving ? '저장 중...' : video ? '영상 저장하기' : '저장하기'}
+              </Pill>
+            </PillRow>
+            {video && !busy && (
+              <GhostBtn
+                onClick={() => {
+                  setVideo(null);
+                  sessionStorage.removeItem(PHOTO_VIDEO_KEY);
+                }}
               >
-                <Video size={24} strokeWidth={2} />
-              </Circle>
+                <X size={11} style={{ verticalAlign: '-1px', marginRight: 2 }} />
+                영상 지우고 사진으로 돌아가기
+              </GhostBtn>
             )}
-            <Pill onClick={handleSave} disabled={saving || animating}>
-              <Download size={24} strokeWidth={2} />
-              {animating
-                ? `영상 생성 중... ${animProgress}%`
-                : saving
-                  ? '저장 중...'
-                  : '저장하기'}
-            </Pill>
-            <Circle
-              className="right"
-              onClick={() => (video ? setVideo(null) : setResult(null))}
-              disabled={animating}
-              aria-label={video ? '영상 취소' : '변환 취소'}
-            >
-              <Minus size={24} strokeWidth={2} />
-            </Circle>
           </>
         )}
       </Footer>

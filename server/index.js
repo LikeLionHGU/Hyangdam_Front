@@ -15,6 +15,18 @@ if (!process.env.OPENAI_API_KEY) {
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// OpenAI 오류를 사용자가 이해할 수 있는 한국어 안내로 변환
+function friendlyError(error, fallback) {
+  const code = error?.code || error?.error?.code;
+  if (code === 'billing_hard_limit_reached' || code === 'insufficient_quota') {
+    return 'OpenAI 크레딧이 부족해요. 크레딧을 충전한 뒤 다시 시도해주세요.';
+  }
+  if (code === 'rate_limit_exceeded') {
+    return '요청이 너무 많아요. 잠시 후 다시 시도해주세요.';
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 const app = express();
 const PORT = 3000;
 
@@ -60,8 +72,7 @@ app.post('/api/colorize', async (req, res) => {
     return res.json({ success: true, image: `data:image/png;base64,${imageBase64}` });
   } catch (error) {
     console.error('이미지 컬러화 오류:', error);
-    const message = error instanceof Error ? error.message : '이미지 컬러화 중 오류가 발생했습니다.';
-    return res.status(500).json({ success: false, message });
+    return res.status(500).json({ success: false, message: friendlyError(error, '이미지 컬러화 중 오류가 발생했습니다.') });
   }
 });
 
@@ -77,7 +88,7 @@ app.post('/api/detect-place', async (req, res) => {
     console.log('장소 인식 요청');
 
     const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -86,11 +97,18 @@ app.post('/api/detect-place', async (req, res) => {
             {
               type: 'text',
               text: [
-                '이 사진에서 장소를 알 수 있는 텍스트(간판, 표지판, 현수막, 버스정류장, 지하철역 출구 표시, 전화번호의 지역번호 등)를 모두 읽어주세요.',
-                '그리고 이 사진이 찍힌 장소를 추정해서, 카카오맵에서 검색할 수 있는 검색어 하나를 만들어주세요. 예: "한국안경 경산", "동성로 스파크랜드".',
-                '상호명이 전국 체인이라면 사진 속 다른 텍스트로 지역을 좁혀보세요.',
-                '장소를 특정할 수 없으면 placeQuery는 null로 하세요.',
-                '반드시 JSON으로만 답하세요: {"texts": ["읽은 텍스트", ...], "placeQuery": "검색어 또는 null"}',
+                '이 사진이 찍힌 장소(대한민국 기준)를 최대한 추정해주세요. 다음 단서를 모두 활용하세요:',
+                '1) 텍스트: 간판, 표지판, 현수막, 버스정류장, 지하철역 출구, 전화번호의 지역번호 등',
+                '2) 랜드마크: 유명 건물, 궁궐, 사찰, 탑, 다리, 역사(驛舍), 대학 건물 등 알아볼 수 있는 곳',
+                '3) 풍경·지형: 특징적인 산, 해변, 강, 호수, 시장 구조, 마을 형태 등',
+                '',
+                '추정한 장소를 카카오맵에서 검색 가능한 검색어로 만들어, 확신이 높은 순서로 최대 3개까지 candidates에 담아주세요.',
+                '예: "한국안경 경산", "경복궁", "해운대해수욕장", "전주 한옥마을".',
+                '상호명이 전국 체인이면 다른 단서로 지역을 좁혀보세요.',
+                '오래된 흑백사진일 수 있으니 시대가 달라도 현재의 지명·명소 이름으로 검색어를 만드세요.',
+                '전혀 특정할 수 없으면 candidates는 빈 배열로 하세요.',
+                '반드시 JSON으로만 답하세요:',
+                '{"texts": ["사진에서 읽은 텍스트", ...], "candidates": [{"query": "검색어", "confidence": "high|medium|low"}, ...]}',
               ].join('\n'),
             },
             { type: 'image_url', image_url: { url: dataUrl } },
@@ -100,17 +118,22 @@ app.post('/api/detect-place', async (req, res) => {
     });
 
     const parsed = JSON.parse(response.choices?.[0]?.message?.content || '{}');
-    const placeQuery =
-      typeof parsed.placeQuery === 'string' && parsed.placeQuery.trim() && parsed.placeQuery !== 'null'
-        ? parsed.placeQuery.trim()
-        : null;
+    const candidates = (Array.isArray(parsed.candidates) ? parsed.candidates : [])
+      .map((c) => (typeof c === 'string' ? c : c?.query))
+      .filter((q) => typeof q === 'string' && q.trim() && q !== 'null')
+      .map((q) => q.trim())
+      .slice(0, 3);
 
-    console.log('장소 인식 결과:', placeQuery, parsed.texts);
-    return res.json({ success: true, texts: parsed.texts || [], placeQuery });
+    console.log('장소 인식 결과:', candidates, parsed.texts);
+    return res.json({
+      success: true,
+      texts: parsed.texts || [],
+      candidates,
+      placeQuery: candidates[0] || null, // 하위 호환
+    });
   } catch (error) {
     console.error('장소 인식 오류:', error);
-    const message = error instanceof Error ? error.message : '장소 인식 중 오류가 발생했습니다.';
-    return res.status(500).json({ success: false, message });
+    return res.status(500).json({ success: false, message: friendlyError(error, '장소 인식 중 오류가 발생했습니다.') });
   }
 });
 
@@ -144,8 +167,7 @@ app.post('/api/animate', async (req, res) => {
     return res.json({ success: true, id: video.id });
   } catch (error) {
     console.error('영상 변환 오류:', error);
-    const message = error instanceof Error ? error.message : '영상 변환 중 오류가 발생했습니다.';
-    return res.status(500).json({ success: false, message });
+    return res.status(500).json({ success: false, message: friendlyError(error, '영상 변환 중 오류가 발생했습니다.') });
   }
 });
 
@@ -178,8 +200,7 @@ app.get('/api/animate/:id', async (req, res) => {
     return res.json({ success: true, status: video.status, progress: video.progress ?? 0 });
   } catch (error) {
     console.error('영상 상태 조회 오류:', error);
-    const message = error instanceof Error ? error.message : '영상 상태 조회 중 오류가 발생했습니다.';
-    return res.status(500).json({ success: false, message });
+    return res.status(500).json({ success: false, message: friendlyError(error, '영상 상태 조회 중 오류가 발생했습니다.') });
   }
 });
 

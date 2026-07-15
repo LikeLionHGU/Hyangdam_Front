@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { X } from 'lucide-react';
 import { useKakaoLoader } from './component/useKakaoLoader';
 import { loadMemories, addMemory, seedMemories } from './api';
+import { loadGallery } from '../galleryPage/galleryStore';
 import AddMemoryModal from './component/AddMemoryModal';
 import MapHeader from './component/MapHeader';
 
@@ -20,28 +21,43 @@ const StatusBanner = styled.div`
 `;
 const DetailCard = styled.div`
   position: absolute; left: 12px; right: 12px; bottom: 18px;
-  background: #fff; border-radius: 16px; padding: 16px 18px;
-  box-shadow: ${({ theme }) => theme.shadow.card}; z-index: 400;
-  h3 { font-size: 16px; font-weight: 700; margin: 0 0 2px; color: ${({ theme }) => theme.colors.ink}; }
-  .place { font-size: 11px; color: ${({ theme }) => theme.colors.inkSoft}; margin-bottom: 8px; }
-  p { font-size: 13px; line-height: 1.6; color: ${({ theme }) => theme.colors.inkSoft}; margin: 0; }
-  button.close { position: absolute; top: 12px; right: 12px; color: ${({ theme }) => theme.colors.inkSoft}; }
+  background: #fff; border-radius: 20px; padding: 18px;
+  box-shadow: 0 6px 24px rgba(34, 34, 59, 0.18); z-index: 400;
+  display: flex; align-items: center; gap: 14px;
+
+  .thumb {
+    flex-shrink: 0; width: 72px; height: 72px;
+    border-radius: 14px; object-fit: cover; display: block;
+  }
+  .info { flex: 1; min-width: 0; padding-right: 24px; }
+  h3 { font-size: 18px; font-weight: 700; margin: 0 0 3px; color: #5C5C5C; }
+  .place { font-size: 14px; color: #909090; }
+  p {
+    font-size: 15px; line-height: 1.6; color: #909090; margin: 6px 0 0;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  button.close {
+    position: absolute; top: 10px; right: 10px;
+    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+    color: #909090;
+  }
 `;
 
-function pinHtml(index) {
+// 가운데 흰 점이 있는 물방울 모양 핀
+function pinHtml() {
   return `
     <div style="
-      display:flex;flex-direction:column;align-items:center;gap:4px;
-      cursor:pointer;
+      position:relative;width:46px;height:46px;cursor:pointer;
+      filter:drop-shadow(0 3px 6px rgba(34,34,59,0.35));
     ">
       <div style="
-        width:12px;height:12px;border-radius:50%;background:#fff;
-        box-shadow:0 1px 4px rgba(0,0,0,0.35);
+        width:46px;height:46px;border-radius:50% 50% 50% 0;
+        background:#8EA5E8;transform:rotate(-45deg);
       "></div>
       <div style="
-        color:#fff;font-weight:500;font-size:14px;line-height:1;
-        text-shadow:0 1px 3px rgba(0,0,0,0.45);
-      ">${index}</div>
+        position:absolute;top:15.3px;left:16.4px;
+        width:13.1px;height:13.1px;border-radius:50%;background:#fff;
+      "></div>
     </div>
   `;
 }
@@ -51,9 +67,15 @@ export default function MapPage() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const overlaysRef = useRef([]);
+  const fittedRef = useRef(false);
   const [memories, setMemories] = useState([]);
   const [selected, setSelected] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+
+  // 선택한 추억에 연결된 갤러리 사진 (핀 등록 시 photoId로 연결됨)
+  const selectedPhoto = selected?.photoId
+    ? (loadGallery().find((g) => g.id === selected.photoId) || null)
+    : null;
 
   useEffect(() => {
     const stored = loadMemories();
@@ -75,18 +97,26 @@ export default function MapPage() {
     overlaysRef.current.forEach((o) => o.setMap(null));
     overlaysRef.current = [];
 
-    memories.forEach((m, i) => {
+    memories.forEach((m) => {
       const el = document.createElement('div');
-      el.innerHTML = pinHtml(i + 1);
+      el.innerHTML = pinHtml();
       el.addEventListener('click', () => setSelected(m));
       const overlay = new kakao.maps.CustomOverlay({
         position: new kakao.maps.LatLng(m.lat, m.lng),
         content: el,
-        yAnchor: 0.2,
+        yAnchor: 1, // 핀 꼬리 끝이 좌표에 오도록
       });
       overlay.setMap(mapRef.current);
       overlaysRef.current.push(overlay);
     });
+
+    // 처음 열릴 때 등록된 핀이 모두 보이도록 지도 범위를 맞춘다
+    if (memories.length && !fittedRef.current) {
+      fittedRef.current = true;
+      const bounds = new kakao.maps.LatLngBounds();
+      memories.forEach((m) => bounds.extend(new kakao.maps.LatLng(m.lat, m.lng)));
+      mapRef.current.setBounds(bounds, 80);
+    }
   }, [loaded, memories]);
 
   const handleSave = (draft) => {
@@ -116,10 +146,13 @@ export default function MapPage() {
       )}
       {selected && (
         <DetailCard>
-          <button className="close" onClick={() => setSelected(null)}><X size={16} /></button>
-          <h3>{selected.title}</h3>
-          <div className="place">{selected.place}</div>
-          <p>{selected.story}</p>
+          <button className="close" onClick={() => setSelected(null)} aria-label="닫기"><X size={20} /></button>
+          {selectedPhoto && <img className="thumb" src={selectedPhoto.image} alt="추억 사진" />}
+          <div className="info">
+            <h3>{selected.title}</h3>
+            <div className="place">{selected.place}</div>
+            {selected.story && <p>{selected.story}</p>}
+          </div>
         </DetailCard>
       )}
       {showAdd && <AddMemoryModal onClose={() => setShowAdd(false)} onSave={handleSave} />}
