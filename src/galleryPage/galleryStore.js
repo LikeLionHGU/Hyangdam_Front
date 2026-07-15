@@ -58,3 +58,18 @@ export async function updateGalleryPhoto(id, dataUrl, videoUrl = null) {
   saveGallery(list);
   return list[idx];
 }
+
+// 갤러리에 텍스트 저장 함수 
+export function addTextToGallery({ text, place, lat, lng }) {
+  const item = {
+    id: `${Date.now()}`,
+    type: 'text',
+    text,
+    place,
+    lat,
+    lng,
+    createdAt: Date.now(),
+  };
+  saveGallery([item, ...loadGallery()]);
+  return item;
+}

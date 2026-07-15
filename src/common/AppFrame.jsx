@@ -38,7 +38,7 @@ const Content = styled.main`
 
 export default function AppFrame() {
   const { pathname } = useLocation();
-  const hideNav = pathname === '/map' || pathname === '/photo';
+  const hideNav = pathname === '/map' || pathname === '/photo' || pathname === '/record';
   return (
     <Stage>
       <Frame>
