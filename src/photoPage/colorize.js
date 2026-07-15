@@ -175,6 +175,8 @@ export async function detectPlaceFromImage(dataUrl) {
   return { texts: data.texts || [], candidates };
 }
 
+// 컬러 변환: 작업을 시작하고 완료될 때까지 상태를 폴링한다
+// (한 번의 긴 요청은 배포 환경의 시간 제한(502)에 걸릴 수 있음)
 export async function colorizeImage(dataUrl) {
   let res;
   try {
@@ -187,9 +189,21 @@ export async function colorizeImage(dataUrl) {
     throw new Error('변환 서버에 연결할 수 없어요. 터미널에서 npm run server 를 실행해주세요.');
   }
 
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data?.success || !data?.image) {
-    throw new Error(data?.message || '이미지 컬러화 중 오류가 발생했습니다.');
+  const started = await res.json().catch(() => null);
+  if (!res.ok || !started?.success || !started?.id) {
+    throw new Error(started?.message || '이미지 컬러화 중 오류가 발생했습니다.');
   }
-  return data.image;
+
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const statusRes = await fetch(`/api/colorize/${started.id}`);
+    const data = await statusRes.json().catch(() => null);
+    if (!statusRes.ok || !data?.success) {
+      throw new Error(data?.message || '이미지 컬러화 중 오류가 발생했습니다.');
+    }
+    if (data.status === 'done') return data.image;
+    if (data.status === 'failed') {
+      throw new Error(data.message || '이미지 컬러화 중 오류가 발생했습니다.');
+    }
+  }
 }

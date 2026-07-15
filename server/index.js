@@ -48,21 +48,36 @@ app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: '향담 백엔드 서버가 정상적으로 실행 중입니다.' });
 });
 
-app.post('/api/colorize', async (req, res) => {
-  try {
-    const dataUrl = req.body?.image;
-    const match = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(dataUrl || '');
-    if (!match) {
-      return res.status(400).json({ success: false, message: '이미지 데이터가 올바르지 않습니다.' });
-    }
+// 컬러 변환은 30초~수 분 걸릴 수 있어 작업(job) 방식으로 처리한다.
+// (배포 환경의 HTTP 요청 시간 제한을 피하기 위해 — 시작 후 상태를 폴링)
+const colorizeJobs = new Map(); // id → { status, image?, message?, ts }
 
-    const [, mimeType, base64] = match;
-    const buffer = Buffer.from(base64, 'base64');
+// 오래된 작업 정리 (10분)
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of colorizeJobs) {
+    if (now - job.ts > 10 * 60 * 1000) colorizeJobs.delete(id);
+  }
+}, 60 * 1000);
+
+app.post('/api/colorize', async (req, res) => {
+  const dataUrl = req.body?.image;
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(dataUrl || '');
+  if (!match) {
+    return res.status(400).json({ success: false, message: '이미지 데이터가 올바르지 않습니다.' });
+  }
+
+  const [, mimeType, base64] = match;
+  const buffer = Buffer.from(base64, 'base64');
+  const id = crypto.randomBytes(8).toString('hex');
+  colorizeJobs.set(id, { status: 'processing', ts: Date.now() });
+  res.json({ success: true, id }); // 작업 id를 먼저 돌려주고 변환은 백그라운드에서
+
+  console.log(`컬러 변환 시작 ${id} (${mimeType}, ${(buffer.length / 1024).toFixed(0)}KB)`);
+
+  try {
     const ext = mimeType.split('/')[1];
     const imageFile = await toFile(buffer, `photo.${ext}`, { type: mimeType });
-
-    console.log(`컬러 변환 요청 (${mimeType}, ${(buffer.length / 1024).toFixed(0)}KB)`);
-
     const result = await client.images.edit({
       model: 'gpt-image-1',
       image: imageFile,
@@ -74,12 +89,32 @@ app.post('/api/colorize', async (req, res) => {
     if (!imageBase64) {
       throw new Error('OpenAI에서 생성된 이미지 데이터를 받지 못했습니다.');
     }
-
-    return res.json({ success: true, image: `data:image/png;base64,${imageBase64}` });
+    colorizeJobs.set(id, { status: 'done', image: `data:image/png;base64,${imageBase64}`, ts: Date.now() });
+    console.log(`컬러 변환 완료 ${id}`);
   } catch (error) {
     console.error('이미지 컬러화 오류:', error);
-    return res.status(500).json({ success: false, message: friendlyError(error, '이미지 컬러화 중 오류가 발생했습니다.') });
+    colorizeJobs.set(id, {
+      status: 'failed',
+      message: friendlyError(error, '이미지 컬러화 중 오류가 발생했습니다.'),
+      ts: Date.now(),
+    });
   }
+});
+
+app.get('/api/colorize/:id', (req, res) => {
+  const job = colorizeJobs.get(req.params.id);
+  if (!job) {
+    return res.status(404).json({ success: false, message: '변환 작업을 찾을 수 없습니다. 다시 시도해주세요.' });
+  }
+  if (job.status === 'done') {
+    colorizeJobs.delete(req.params.id);
+    return res.json({ success: true, status: 'done', image: job.image });
+  }
+  if (job.status === 'failed') {
+    colorizeJobs.delete(req.params.id);
+    return res.json({ success: true, status: 'failed', message: job.message });
+  }
+  return res.json({ success: true, status: 'processing' });
 });
 
 // 사진 속 간판·표지판 텍스트를 읽어 장소를 추정한다.
